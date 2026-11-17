@@ -1,0 +1,286 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gakis — Îlot Maître</title>
+<style>
+:root{--ink:#0d2238;--mut:#5b6b7c;--bg:#f3f6f9;--card:#fff;--blue:#0b5fa5;--ok:#1d8a4e;--warn:#c0392b;--line:#dde4ea}
+*{box-sizing:border-box}body{margin:0;font:16px/1.4 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:12px}header img{height:44px}
+h1{font-size:20px;margin:0}h2{font-size:17px;margin:20px 0 8px}.mut{color:var(--mut);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+input{-webkit-appearance:none;appearance:none}
+label{display:block;font-size:14px;color:var(--mut);margin:8px 0 4px}
+input,select{width:100%;min-width:0;display:block;min-height:46px;font:inherit;padding:11px;border:1px solid #c5d0da;border-radius:8px;background:#fff;color:var(--ink)}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:13px 16px;background:var(--blue);color:#fff;cursor:pointer}
+button.sec{background:#e6eef5;color:var(--blue)}button.ok{background:var(--ok)}button.no{background:#fbeaea;color:var(--warn)}
+button.sm{padding:8px 11px;font-size:14px}button:disabled{opacity:.5}
+.big{width:100%;font-size:18px;padding:16px}
+.dep{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.dep.sel{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue)}
+.time{font-size:22px;font-weight:700}
+.seg{display:flex;gap:6px}.seg button{flex:1;background:#e6eef5;color:var(--ink);font-weight:500}.seg button.on{background:var(--blue);color:#fff}
+.chip{display:inline-block;width:16px;height:16px;border-radius:50%;border:1px solid #0003;vertical-align:-3px;margin-right:4px}
+.err{color:var(--warn);font-weight:600;margin:8px 0}
+.total{font-size:20px;font-weight:700;text-align:right;margin:12px 0}
+.tag{font-size:12px;padding:2px 7px;border-radius:20px;background:#eef2f5}.tag.p{background:#d9f2e3;color:var(--ok)}.tag.a{background:#fff1d6;color:#9a6200}.tag.x{background:#fbeaea;color:var(--warn)}
+.code{font-size:44px;font-weight:800;letter-spacing:4px;text-align:center}
+.skip .now{font-size:64px;font-weight:800;line-height:1}.skip .seats{font-size:40px;font-weight:800}
+.bar{height:10px;border-radius:5px;background:#e6eef5;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--blue)}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}td.n,th.n{text-align:right;white-space:nowrap}
+.x{text-decoration:line-through;opacity:.5}a{color:var(--blue)}
+</style></head>
+<body><div class="wrap" id="app">Loading…</div>
+<script>
+window.onerror = (m, s, l) => { document.getElementById('app').textContent = 'Erreur : ' + m + ' (ligne ' + l + ')'; };
+const PAGE = (new URLSearchParams(location.search).get('p') || 'resa'), URL_ = (location.origin + location.pathname);
+const COLORS = {bleu:'#1e5bd8',cyan:'#19c3dd',vert:'#2e9d4f',jaune:'#f5c518',orange:'#f08a24',rouge:'#d93025',rose:'#ec6aa6',violet:'#7b4fd0',blanc:'#ffffff',noir:'#222',gris:'#999'};
+const col = c => COLORS[String(c||'').trim().toLowerCase()] || '#ccc';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = (n, d) => d === 'AUD' ? 'A$' + n : Number(n).toLocaleString('fr-FR') + ' XPF';
+const API = 'https://script.google.com/macros/s/AKfycbz2qCzvJuEiEthDIPyqn1AnPU1nnV990Phxccod0VuX-MGm-6mxgJ9e7hpHbnO0QmT6/exec';
+const call = (fn, ...a) => window.google && google.script
+  ? new Promise((ok, ko) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => ko(e.message || e))[fn](...a))
+  : fetch(API, {method: 'POST', body: JSON.stringify({fn, args: a})}).then(r => r.json()).then(r => { if (!r.ok) throw r.error; return r.data; }, () => { throw 'Pas de connexion, réessaie.'; });
+const LOGO = '<header><img src="https://static.wixstatic.com/media/77dba7_9a4d59e107f2410b9c877ad6b03cdfcf~mv2.png" alt="Gakis"><div><h1>Îlot Maître taxi boat</h1><div class="mut">Gakis · Nouméa</div></div></header>';
+
+/* ================= TOURISTES ================= */
+let S = {depart:null, people:[{prenom:'',nom:'',type:'adulte',devise:'AUD',mode:'Cash'}], tel:'+61 ', ensemble:true, devise:'AUD', mode:'Cash'}, PUB = null, busy = false;
+const TYPES = [['adulte','Adult'],['enfant','Child (2–9)'],['bebe','Baby under 2 (free)']];
+function seg(key, opts, cur, i) {
+  return '<div class="seg">' + opts.map(([v,l]) => `<button type="button" class="${v===cur?'on':''}" onclick="setv('${key}','${v}',${i??-1})">${l}</button>`).join('') + '</div>';
+}
+function setv(k, v, i) { if (k === 'ensemble') v = !!v; if (i >= 0) S.people[i][k] = v; else S[k] = v; renderResa(); }
+function total() {
+  const t = {};
+  S.people.forEach(p => { const d = S.ensemble ? S.devise : p.devise; t[d] = (t[d]||0) + PUB.prices[p.type][d]; });
+  return Object.entries(t).map(([d,n]) => fmt(n,d)).join(' + ') || '0';
+}
+function renderResa(err) {
+  const a = document.activeElement, focusId = a && a.id, pos = a && a.selectionStart;
+  if (!PUB.deps.length) { $('#app').innerHTML = LOGO + '<div class="card"><b>No boats open for booking right now.</b><p class="mut">Please ask at the Gakis desk.</p></div>'; return; }
+  if (S.depart && !PUB.deps.some(d => d.id === S.depart)) S.depart = null;
+  const many = S.people.length > 1;
+  let h = LOGO + '<p class="mut">Book your seat, then pay at the Gakis desk. Return trip included.</p>';
+  h += '<h2>1. Choose your boat</h2>' + PUB.deps.map(d => `<div class="card dep ${d.id===S.depart?'sel':''}" onclick="S.depart='${d.id}';renderResa()">
+     <div><div class="time">${d.heure}</div><div class="mut">Back from the island ${d.retour}</div></div><div><b>${d.libres}</b> <span class="mut">seat${d.libres>1?'s':''} left</span></div></div>`).join('');
+  h += '<h2>2. Who is coming?</h2>' + S.people.map((p,i) => `<div class="card">
+     <div class="row"><div><label>First name</label><input id="pf${i}" value="${esc(p.prenom)}" oninput="S.people[${i}].prenom=this.value" autocomplete="given-name"></div>
+     <div><label>Last name</label><input id="pn${i}" value="${esc(p.nom)}" oninput="S.people[${i}].nom=this.value" autocomplete="family-name"></div></div>
+     <label>Age</label>${seg('type', TYPES.map(([v,l])=>[v,l]), p.type, i)}
+     ${many && !S.ensemble ? `<label>Pays in</label>${seg('devise',[['AUD','AUD $'],['XPF','CFP francs']],p.devise,i)}<label>By</label>${seg('mode',[['Cash','Cash'],['Carte','Card']],p.mode,i)}` : ''}
+     ${i ? `<p><button class="sm no" type="button" onclick="S.people.splice(${i},1);renderResa()">Remove</button></p>` : ''}</div>`).join('');
+  h += `<button class="sec" type="button" onclick="S.people.push({prenom:'',nom:'',type:'adulte',devise:S.devise,mode:S.mode});renderResa()">+ Add a person</button>`;
+  h += `<h2>3. Phone number</h2><div class="card"><label>WhatsApp number with country code — we will contact you on WhatsApp if needed while you are on the island</label><input id="tel" type="tel" value="${esc(S.tel)}" oninput="S.tel=this.value" autocomplete="tel"></div>`;
+  h += '<h2>4. Payment at the desk</h2><div class="card">';
+  if (many) h += '<label>Pay</label>' + seg('ensemble', [['1','All together'],['','Separately']], S.ensemble?'1':'');
+  if (!many || S.ensemble) h += `<label>Currency</label>${seg('devise',[['AUD','AUD $'],['XPF','CFP francs']],S.devise)}<label>By</label>${seg('mode',[['Cash','Cash'],['Carte','Card']],S.mode)}`;
+  h += `<div class="total">Total: ${total()}</div></div>`;
+  h += (err ? `<div class="err">${esc(err)}</div>` : '') + `<button class="big" ${busy?'disabled':''} onclick="submitResa()">${busy?'Booking…':'Book my seat'}</button><p class="mut">Please be at the desk 10 minutes before departure.</p>`;
+  $('#app').innerHTML = h;
+  if (focusId && $('#'+focusId)) { const el = $('#'+focusId); el.focus(); try { el.setSelectionRange(pos,pos); } catch(e){} }
+}
+async function submitResa() {
+  if (!S.depart) return renderResa('Please choose a boat.');
+  if (S.people.some(p => !p.prenom.trim() || !p.nom.trim())) return renderResa('Please enter first and last name for everyone.');
+  busy = true; renderResa();
+  try {
+    const r = await call('book', {depart:S.depart, people:S.people, tel:S.tel, ensemble:S.ensemble, devise:S.devise, mode:S.mode});
+    const sums = {}; r.rows.forEach(x => sums[x.devise] = (sums[x.devise]||0) + Number(x.montant));
+    $('#app').innerHTML = LOGO + `<div class="card" style="text-align:center"><p class="mut">Your booking number</p><div class="code">${r.groupe}</div>
+      <p><b>Boat ${r.heure}</b> · back from the island ${r.retour}</p><p>${r.rows.map(x=>esc(x.prenom)).join(', ')}</p>
+      <div class="total" style="text-align:center">To pay: ${Object.entries(sums).map(([d,n])=>fmt(n,d)).join(' + ')}</div>
+      <p><b>Show this screen at the Gakis desk to pay.</b><br>Be there 10 minutes before departure.</p></div>`;
+  } catch (e) { busy = false; await loadPub(); renderResa(String(e)); }
+}
+async function loadPub() { PUB = await call('getPublic'); }
+
+/* ================= CAISSE ================= */
+let C = null, PIN = '', filt = 'attente', VIEW = 'caisse', K = null, KDATE = '';
+try { PIN = localStorage.getItem('gakisPin') || ''; } catch(e) {}
+function pinScreen(err) {
+  $('#app').innerHTML = LOGO + `<div class="card"><label>Code caisse</label><input id="pin" type="password" inputmode="numeric"><div class="err">${err||''}</div><button class="big" onclick="PIN=$('#pin').value;loadCaisse()">Entrer</button></div>`;
+}
+async function loadCaisse() {
+  try { C = await call('getCaisse', PIN); try { localStorage.setItem('gakisPin', PIN); } catch(e) {} renderCaisse(); }
+  catch (e) { pinScreen(e); }
+}
+let OPEN = new Set(), FLASH = '';
+async function act(action, a) {
+  document.activeElement && document.activeElement.blur();
+  FLASH = 'Enregistrement…'; renderCaisse();
+  try {
+    C = await call('caisse', PIN, action, a);
+    FLASH = action === 'addDep' ? '✓ Départ de ' + a.heure + ' ajouté' : '✓ Enregistré';
+  } catch (e) { FLASH = '⚠ Pas enregistré : ' + e; }
+  renderCaisse(); setTimeout(() => { FLASH = ''; renderCaisse(); }, 4000);
+}
+function renderCaisse() {
+  if (document.activeElement && document.activeElement.matches('input,select')) return; // ne pas écraser une saisie en cours
+  if (VIEW === 'compta') return;
+  const dep = id => C.deps.find(d => d.id === id) || {};
+  let h = LOGO + TABS() + `<div class="row" style="margin-bottom:8px"><a class="sm sec" style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}" target="_blank">Vue client</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=skipper" target="_blank">Vue skippers</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=qr" target="_blank">QR à imprimer</a></div>`;
+  h += `<h2>Départs du jour (${C.deps.length})</h2><div class="card" style="padding:4px 14px">` + (C.deps.length ? '' : '<p class="mut">Aucun départ. Ajoute le premier ci-dessous.</p>') + C.deps.map((d, i) => `<details ${OPEN.has(d.id)?'open':''} ontoggle="this.open?OPEN.add('${d.id}'):OPEN.delete('${d.id}')" style="border-bottom:1px solid var(--line);padding:10px 0">
+      <summary style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="mut">${i+1}.</span><span class="chip" style="background:${col(d.couleur)}"></span><b style="font-size:19px">${d.heure}</b>
+        <span class="mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.skipper||'—')}</span><b>${d.pris}/${d.capacite}</b></summary>
+      <div class="bar"><i style="width:${Math.min(100,d.pris/d.capacite*100)}%"></i></div>
+      <p class="mut" style="margin:6px 0">Retour ${d.retour} · ${d.payes} payés · ${d.bloquees} bloquées</p>
+      <div class="row"><select onchange="act('editDep',{id:'${d.id}',field:'heure',value:this.value})">${TIMES(d.heure)}</select>
+        <select onchange="act('editDep',{id:'${d.id}',field:'couleur',value:this.value})"><option value="">Couleur…</option>${C.couleurs.map(c=>`<option ${c===d.couleur?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+      <div class="row" style="margin-top:8px"><select onchange="act('editDep',{id:'${d.id}',field:'skipper',value:this.value})">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===d.skipper?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div>
+      <div class="row" style="margin-top:8px;align-items:center"><span class="mut">Bloq.</span>
+        <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:Math.max(0,${Number(d.bloquees)}-1)})">−1</button>
+        <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:${Number(d.bloquees)}+1})">+1</button>
+        <button class="sm" onclick="exportDep('${d.id}')">Exporter</button>
+        ${d.pris == d.bloquees ? `<button class="sm no" onclick="if(confirm('Supprimer le départ ${d.heure} ?'))act('delDep',{id:'${d.id}'})">✕</button>` : ''}</div></details>`).join('') + '</div>';
+  h += `<div class="card"><b>Nouveau départ</b><div class="row"><div><label>Heure</label><select id="nh">${TIMES(NEXT())}</select></div><div><label>Couleur</label><select id="nc">${C.couleurs.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div></div>
+     <div class="row"><div><label>Skipper</label><select id="ns">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===''?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div><div><label>Places</label><input id="np" type="number" value="${C.capacite}"></div></div>
+     <p><button onclick="act('addDep',{heure:$('#nh').value,couleur:$('#nc').value,skipper:$('#ns').value,capacite:$('#np').value})">Ajouter</button>
+     <b style="margin-left:10px;color:${FLASH.startsWith('⚠')?'var(--warn)':'var(--ok)'}">${esc(FLASH)}</b></p></div>`;
+  h += `<details class="card"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}</label>
+     <input value="${esc(v)}" onchange="act('setting',{key:${esc(JSON.stringify(k))},value:this.value})">`).join('')}
+     <p class="mut">Les nouvelles résas prennent le nouveau prix. Les résas déjà faites gardent leur prix.</p></details>`;
+  const groups = {};
+  C.resas.slice().reverse().forEach(r => (groups[r.groupe] = groups[r.groupe] || []).push(r));
+  const list = Object.values(groups).filter(g => filt === 'tout' || g.some(r => r.statut === 'attente'));
+  h += `<h2>Réservations</h2><div class="seg" style="margin-bottom:10px"><button class="${filt==='attente'?'on':''}" onclick="filt='attente';renderCaisse()">À encaisser</button><button class="${filt==='tout'?'on':''}" onclick="filt='tout';renderCaisse()">Toutes</button></div>`;
+  h += list.length ? '' : '<p class="mut">Rien pour l’instant.</p>';
+  h += list.map(g => {
+    const d = dep(g[0].depart), live = g.filter(r => r.statut !== 'annulé'), ens = g[0].ensemble === 'oui';
+    const sums = {}; live.filter(r => r.statut === 'attente').forEach(r => sums[r.devise] = (sums[r.devise]||0) + Number(r.montant));
+    const due = Object.entries(sums).map(([k,n]) => fmt(n,k)).join(' + ');
+    const ids = a => JSON.stringify(a.map(r => r.id)).replace(/"/g,"'");
+    return `<div class="card"><div class="dep" style="cursor:default"><div><b style="font-size:20px">${g[0].groupe}</b> · <span class="chip" style="background:${col(d.couleur)}"></span>${d.heure||'?'} ${esc(d.couleur||'')}</div>
+      <a href="tel:${esc(g[0].tel.replace(/\s/g,''))}">${esc(g[0].tel)}</a></div>
+      ${g.map(r => `<div class="row" style="align-items:center;margin-top:6px"><span class="${r.statut==='annulé'?'x':''}">${esc(r.prenom)} ${esc(r.nom)} <span class="mut">${r.type==='enfant'?'enfant':r.type==='bebe'?'bébé':''}</span></span>
+        <span style="text-align:right">${fmt(r.montant,r.devise)} · ${r.mode} <span class="tag ${r.statut==='payé'?'p':r.statut==='annulé'?'x':'a'}">${r.statut}</span>
+        ${!ens && r.statut==='attente' ? `<button class="sm ok" onclick="act('statut',{ids:['${r.id}'],value:'payé'})">Payé</button>` : ''}</span></div>`).join('')}
+      ${due ? `<div class="total">Reste : ${due}${ens?' · '+g[0].mode:''}</div>` : ''}
+      <div class="row" style="margin-top:8px">
+        ${ens && live.some(r=>r.statut==='attente') ? `<button class="ok" onclick="act('statut',{ids:${ids(live)},value:'payé'})">Tout payé</button>` : ''}
+        <select onchange="if(this.value)act('move',{ids:${ids(g)},value:this.value})"><option value="">Changer de bateau…</option>${C.deps.filter(x=>x.id!==g[0].depart).map(x=>`<option value="${x.id}">${x.heure} (${x.libres} libres)</option>`).join('')}</select>
+        ${live.length ? `<button class="no" onclick="if(confirm('Annuler la réservation ${g[0].groupe} ?'))act('statut',{ids:${ids(live)},value:'annulé'})">Annuler</button>` : ''}</div></div>`;
+  }).join('');
+  $('#app').innerHTML = h;
+}
+
+// Image du départ pour le groupe Facebook (texte seul : un logo externe bloquerait l'export du canvas)
+function exportDep(id) {
+  const d = C.deps.find(x => x.id === id), list = C.resas.filter(r => r.depart === id && r.statut !== 'annulé');
+  const W = 1080, H = 560 + list.length * 64 + (Number(d.bloquees) ? 64 : 0), cv = document.createElement('canvas');
+  cv.width = W; cv.height = H; const x = cv.getContext('2d'), F = 'px -apple-system,system-ui,Roboto,sans-serif';
+  x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.fillStyle = col(d.couleur); x.fillRect(0, 0, W, 28); x.fillRect(0, H - 28, W, 28);
+  x.fillStyle = '#0d2238'; x.font = '600 36' + F; x.fillText('GAKIS · Îlot Maître', 60, 100);
+  x.font = '800 150' + F; x.fillText(d.heure, 60, 260);
+  x.font = '600 40' + F; x.textAlign = 'right'; x.fillText(d.pris + ' / ' + d.capacite + ' passagers', W - 60, 255); x.textAlign = 'left';
+  x.font = '400 38' + F; x.fillText('Retour ' + d.retour + '   ·   Skipper ' + (d.skipper || '—'), 60, 330);
+  x.fillStyle = col(d.couleur); x.beginPath(); x.arc(78, 398, 20, 0, 7); x.fill(); x.strokeStyle = '#0003'; x.lineWidth = 2; x.stroke();
+  x.fillStyle = '#0d2238'; x.font = '700 38' + F; x.fillText('Bracelet ' + (d.couleur || '—'), 112, 411);
+  x.fillStyle = '#dde4ea'; x.fillRect(60, 450, W - 120, 2);
+  x.font = '400 34' + F; let y = 510, last = '';
+  list.forEach(r => {
+    x.fillStyle = '#0d2238'; x.fillText(r.prenom + ' ' + r.nom + (r.type === 'enfant' ? ' (enfant)' : r.type === 'bebe' ? ' (bébé)' : ''), 60, y);
+    x.fillStyle = '#5b6b7c'; x.textAlign = 'right'; x.fillText(r.groupe === last ? '' : r.tel, W - 60, y); x.textAlign = 'left';
+    last = r.groupe; y += 64;
+  });
+  if (Number(d.bloquees)) { x.fillStyle = '#5b6b7c'; x.fillText('+ ' + d.bloquees + ' place(s) bloquée(s)', 60, y); }
+  const url = cv.toDataURL('image/png'), name = 'gakis-' + d.heure.replace(':', 'h') + '.png';
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:#000d;z-index:9;overflow:auto;padding:16px;text-align:center;color:#fff';
+  ov.innerHTML = `<p>Appuie longuement sur l'image pour l'enregistrer ou la partager</p><img src="${url}" style="width:100%;max-width:540px;border-radius:8px">
+    <p><a download="${name}" href="${url}" style="color:#fff">Télécharger ${name}</a></p><button class="sec" onclick="this.parentNode.remove()">Fermer</button>`;
+  document.body.appendChild(ov);
+}
+
+// Heures par pas de 10 min (08:00 → 13:00), proposé : 20 min après le dernier départ
+const TIMES = sel => Array.from({length: 31}, (_, i) => { const m = 480 + i * 10, t = String(m / 60 | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); return `<option ${t === sel ? 'selected' : ''}>${t}</option>`; }).join('');
+function NEXT() {
+  const last = C.deps.length ? C.deps[C.deps.length - 1].heure : C.now, [a, b] = last.split(':').map(Number);
+  const m = Math.min(780, Math.max(480, Math.ceil((a * 60 + b + (C.deps.length ? 20 : 0)) / 10) * 10));
+  return String(m / 60 | 0).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+/* ================= COMPTA ================= */
+const TABS = () => `<div class="seg" style="margin-bottom:12px"><button class="${VIEW==='caisse'?'on':''}" onclick="VIEW='caisse';renderCaisse()">Caisse</button><button class="${VIEW==='compta'?'on':''}" onclick="VIEW='compta';loadCompta()">Compta</button></div>`;
+async function loadCompta(date) {
+  KDATE = date || KDATE || new Date().toLocaleDateString('en-CA', {timeZone:'Pacific/Noumea'});
+  $('#app').innerHTML = LOGO + TABS() + '<p class="mut">Chargement…</p>';
+  try { K = await call('getCompta', PIN, KDATE); renderCompta(); } catch (e) { $('#app').innerHTML = LOGO + TABS() + `<div class="err">${esc(e)}</div>`; }
+}
+// Un encaissement = un groupe qui paie ensemble, ou une personne qui paie seule
+function stats(K) {
+  const live = K.resas.filter(r => r.statut !== 'annulé'), n = t => live.filter(r => r.type === t).length;
+  const enc = {};
+  live.forEach(r => { const k = (r.ensemble === 'oui' ? r.groupe : r.id) + '|' + r.statut; (enc[k] = enc[k] || []).push(r); });
+  const tx = Object.values(enc).map(g => ({ groupe: g[0].groupe, dep: K.deps.find(d => d.id === g[0].depart) || {}, statut: g[0].statut,
+    noms: g.map(r => r.prenom + ' ' + r.nom).join(', '), a: g.filter(r=>r.type==='adulte').length, e: g.filter(r=>r.type==='enfant').length, b: g.filter(r=>r.type==='bebe').length,
+    devise: g[0].devise, mode: g[0].mode, montant: g.reduce((s, r) => s + Number(r.montant), 0) }));
+  const tot = (st, dev, mode) => tx.filter(t => t.statut === st && t.devise === dev && (!mode || t.mode === mode));
+  const cap = K.deps.reduce((s, d) => s + Number(d.capacite), 0), pax = live.length;
+  return { adultes: n('adulte'), enfants: n('enfant'), bebes: n('bebe'), pax, cap, taux: cap ? Math.round(pax / cap * 100) : 0, tx,
+    caisse: [['Cash','XPF'],['Cash','AUD'],['Carte','XPF'],['Carte','AUD']].map(([m,d]) => { const l = tot('payé', d, m); return { m, d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }),
+    attente: ['XPF','AUD'].map(d => { const l = tot('attente', d); return { d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }) };
+}
+function comptaHtml(K, s) {
+  const lbl = t => [t.a && t.a + ' A', t.e && t.e + ' E', t.b && t.b + ' B'].filter(Boolean).join(' ');
+  return `<h2>Ventes · ${K.date}</h2><div class="card"><table>
+      <tr><td>Adultes</td><td class="n"><b>${s.adultes}</b></td></tr><tr><td>Enfants (2–9 ans)</td><td class="n"><b>${s.enfants}</b></td></tr>
+      <tr><td>Bébés (gratuit)</td><td class="n"><b>${s.bebes}</b></td></tr><tr><td><b>Total passagers</b></td><td class="n"><b>${s.pax}</b></td></tr></table></div>
+    <h2>Encaissé</h2><div class="card"><table><tr><th>Mode</th><th class="n">Nb encaissements</th><th class="n">Montant</th></tr>
+      ${s.caisse.map(c => `<tr><td>${c.m} ${c.d}</td><td class="n">${c.nb}</td><td class="n"><b>${fmt(c.v, c.d)}</b></td></tr>`).join('')}</table>
+      <p><b>Espèces en caisse :</b> ${fmt(s.caisse[0].v,'XPF')} + ${fmt(s.caisse[1].v,'AUD')}</p></div>
+    <h2>Reste à encaisser</h2><div class="card"><table>${s.attente.map(a => `<tr><td>${a.d}</td><td class="n">${a.nb} encaissement(s)</td><td class="n"><b>${fmt(a.v, a.d)}</b></td></tr>`).join('')}</table></div>
+    <h2>Bateaux · taux d'occupation ${s.taux} %</h2><div class="card"><table><tr><th>Départ</th><th>Skipper</th><th>Bracelet</th><th class="n">Passagers</th><th class="n">Taux</th></tr>
+      ${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
+      <tr><td colspan="3"><b>Total</b></td><td class="n"><b>${s.pax}/${s.cap}</b></td><td class="n"><b>${s.taux} %</b></td></tr></table></div>
+    <h2>Détail des encaissements</h2><div class="card"><table><tr><th>Départ</th><th>Code</th><th>Noms</th><th class="n">Montant</th><th>Statut</th></tr>
+      ${s.tx.sort((a,b)=>String(a.dep.heure).localeCompare(b.dep.heure)).map(t => `<tr><td>${t.dep.heure||''}</td><td>${t.groupe}</td><td>${esc(t.noms)} <span class="mut">(${lbl(t)})</span></td><td class="n">${fmt(t.montant,t.devise)} ${t.mode}</td><td>${t.statut}</td></tr>`).join('')}</table></div>`;
+}
+function renderCompta() {
+  const s = stats(K);
+  $('#app').innerHTML = LOGO + TABS() + `<div class="row" style="align-items:end"><div><label>Jour</label><input type="date" value="${K.date}" onchange="loadCompta(this.value)"></div>
+    <button onclick="cloture(this)">Clôturer · PDF</button></div>` + comptaHtml(K, s);
+}
+async function cloture(btn) {
+  btn.disabled = true; btn.textContent = 'PDF…';
+  const css = 'body{font:12px Helvetica,Arial,sans-serif;color:#0d2238}h1{font-size:20px}h2{font-size:15px;margin:16px 0 6px}table{width:100%;border-collapse:collapse}td,th{padding:4px;border-bottom:1px solid #ddd;text-align:left}.n{text-align:right}.mut{color:#666}';
+  const html = `<meta charset="utf-8"><style>${css}</style><h1>Gakis · Îlot Maître · Clôture du ${K.date}</h1>${comptaHtml(K, stats(K))}`;
+  try {
+    const b64 = await call('pdf', PIN, html), name = 'gakis-cloture-' + K.date + '.pdf';
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    btn.insertAdjacentHTML('afterend', `<a style="display:block;margin-top:6px" href="data:application/pdf;base64,${b64}" download="${name}">Si rien ne s'est passé : télécharger ${name}</a>`);
+  } catch (e) { alert(e); }
+  btn.disabled = false; btn.textContent = 'Clôturer · PDF';
+}
+
+/* ================= SKIPPERS ================= */
+async function loadSkipper() {
+  const s = await call('getSkipper');
+  const next = s.deps.filter(d => d.heure >= s.now), last = s.deps.filter(d => d.heure < s.now).slice(-1);
+  const show = last.concat(next);
+  let h = LOGO + `<p class="mut">Mis à jour à ${s.now}</p>`;
+  if (!show.length) h += '<div class="card">Aucun départ prévu.</div>';
+  h += show.map((d,i) => `<div class="card skip" style="border-left:14px solid ${col(d.couleur)}">
+     <div class="row" style="align-items:flex-end"><div><div class="mut">${d.heure < s.now ? 'Parti' : i === last.length ? 'PROCHAIN BATEAU' : 'Ensuite'}</div><div class="${i===last.length?'now':'time'}">${d.heure}</div></div>
+     <div style="text-align:right"><div class="seats">${d.pris}<span class="mut" style="font-size:20px">/${d.capacite}</span></div><div class="mut">${d.payes} payés · ${d.bloquees} bloquées</div></div></div>
+     <div class="bar"><i style="width:${Math.min(100,d.pris/d.capacite*100)}%"></i></div>
+     <p style="margin:8px 0 0">Bracelet <span class="chip" style="background:${col(d.couleur)}"></span><b>${esc(d.couleur||'—')}</b> · Retour <b>${d.retour}</b> · Skipper <b>${esc(d.skipper||'—')}</b></p></div>`).join('');
+  $('#app').innerHTML = h;
+}
+
+/* ================= QR ================= */
+const QR_API = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=10&data='; // URL hors template literal : Google retire les « // » dedans
+function renderQr() {
+  $('#app').innerHTML = `<div style="text-align:center;padding-top:30px">${LOGO.replace('<header>','<header style="justify-content:center">')}
+    <h1 style="font-size:34px;margin:20px 0">Book your boat to Îlot Maître</h1><p style="font-size:20px">Scan, choose your boat, pay at the desk</p>
+    <img style="width:min(80vw,420px)" src="${QR_API}${encodeURIComponent(URL_)}" alt="QR code"><p class="mut">${esc(URL_)}</p></div>`;
+}
+
+/* ================= ROUTAGE ================= */
+const poll = (f, ms) => { f(); setInterval(f, ms); };
+if (PAGE === 'caisse') { PIN ? loadCaisse() : pinScreen(); setInterval(() => C && call('getCaisse', PIN).then(c => { C = c; renderCaisse(); }).catch(()=>{}), 6000); }
+if (PAGE === 'skipper') poll(() => loadSkipper().catch(e => $('#app').textContent = 'Erreur : ' + e), 8000);
+if (PAGE === 'qr') renderQr();
+if (PAGE === 'resa') loadPub().then(() => renderResa()).then(() => setInterval(() => !busy && $('.big') && loadPub().then(() => { if (!document.activeElement.matches('input')) renderResa(); }), 20000)).catch(e => $('#app').textContent = e);
+</script></body></html>
