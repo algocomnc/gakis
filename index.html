@@ -90,7 +90,12 @@ function renderResa(err) {
   h += '<h2>4. Payment at the desk</h2><div class="card">';
   if (many) h += '<label>Pay</label>' + seg('ensemble', [['1','All together'],['','Separately']], S.ensemble?'1':'');
   if (!many || S.ensemble) h += PAY(S.mode, S.devise);
-  h += `<div class="total">Total: ${total()}</div></div>`;
+  h += `<div class="total">Total: ${total()}</div>`;
+  if (S.mode === 'Carte' && (!many || S.ensemble) && PUB.taux) { // équivalence indicative pour les touristes
+    const x = S.people.reduce((t, p) => t + PUB.prices[p.type].CARTE, 0);
+    if (x) h += `<p class="mut" style="text-align:right;margin:-6px 0 0">≈ A$${Math.round(x / PUB.taux.AUD)} · ≈ US$${Math.round(x / PUB.taux.USD)} (indicative, your bank sets the final rate)</p>`;
+  }
+  h += '</div>';
   h += (err ? `<div class="err">${esc(err)}</div>` : '') + `<button class="big" ${busy?'disabled':''} onclick="submitResa()">${busy?'Booking…':'Book my seat'}</button><p class="mut">Please be at the desk 10 minutes before departure.</p>`;
   $('#app').innerHTML = h;
   if (focusId && $('#'+focusId)) { const el = $('#'+focusId); el.focus(); try { el.setSelectionRange(pos,pos); } catch(e){} }
