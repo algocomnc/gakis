@@ -246,8 +246,13 @@ function stats(K) {
     devise: g[0].devise, mode: g[0].mode, montant: g.reduce((s, r) => s + Number(r.montant), 0) }));
   const tot = (st, dev, mode) => tx.filter(t => t.statut === st && t.devise === dev && (!mode || t.mode === mode));
   const cap = K.deps.reduce((s, d) => s + Number(d.capacite), 0), pax = live.length;
-  return { adultes: n('adulte'), enfants: n('enfant'), bebes: n('bebe'), pax, cap, taux: cap ? Math.round(pax / cap * 100) : 0, tx,
-    caisse: [['Cash','XPF'],['Cash','AUD'],['Cash','USD'],['Carte','XPF']].map(([m,d]) => { const l = tot('payé', d, m); return { m, d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }),
+  // Chaque devise reste séparée ; seul le « total journée » convertit AUD/USD en CFP au taux des réglages
+  const rate = K.taux || {AUD: 72, USD: 110}, cfp = (v, d) => d === 'XPF' ? v : Math.round(v * rate[d]);
+  const caisse = [['Cash','XPF'],['Cash','AUD'],['Cash','USD'],['Carte','XPF']].map(([m,d]) => { const l = tot('payé', d, m), v = l.reduce((s,t)=>s+t.montant,0); return { m, d, nb: l.length, v, cfp: cfp(v, d) }; });
+  const modes = [[3,'Carte (CFP)',PAYC.carte],[0,'Cash CFP',PAYC.xpf],[1,'Cash AUD',PAYC.aud],[2,'Cash USD',PAYC.usd]].map(([i,l,c]) => Object.assign({ l, c }, caisse[i]));
+  const totalCfp = modes.reduce((t, m) => t + m.cfp, 0), carteCfp = caisse[3].cfp;
+  return { adultes: n('adulte'), enfants: n('enfant'), bebes: n('bebe'), pax, cap, taux: cap ? Math.round(pax / cap * 100) : 0, tx, rate,
+    caisse, modes, totalCfp, carteCfp, cashCfp: totalCfp - carteCfp,
     attente: ['XPF','AUD','USD'].map(d => { const l = tot('attente', d); return { d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }) };
 }
 function comptaHtml(K, s) {
@@ -255,9 +260,11 @@ function comptaHtml(K, s) {
   return `<h2>Ventes · ${K.date}</h2><div class="card"><table>
       <tr><td>Adultes</td><td class="n"><b>${s.adultes}</b></td></tr><tr><td>Enfants (2–9 ans)</td><td class="n"><b>${s.enfants}</b></td></tr>
       <tr><td>Bébés (gratuit)</td><td class="n"><b>${s.bebes}</b></td></tr><tr><td><b>Total passagers</b></td><td class="n"><b>${s.pax}</b></td></tr></table></div>
-    <h2>Encaissé</h2><div class="card"><table><tr><th>Mode</th><th class="n">Nb encaissements</th><th class="n">Montant</th></tr>
-      ${s.caisse.map(c => `<tr><td>${c.m} ${c.d}</td><td class="n">${c.nb}</td><td class="n"><b>${fmt(c.v, c.d)}</b></td></tr>`).join('')}</table>
-      <p><b>Espèces en caisse :</b> ${fmt(s.caisse[0].v,'XPF')} + ${fmt(s.caisse[1].v,'AUD')} + ${fmt(s.caisse[2].v,'USD')}</p></div>
+    <h2>Encaissé</h2><div class="card"><table><tr><th>Mode</th><th class="n">Nb</th><th class="n">Montant</th><th class="n">≈ CFP</th></tr>
+      ${s.modes.map(c => `<tr><td>${c.l}</td><td class="n">${c.nb}</td><td class="n"><b>${fmt(c.v, c.d)}</b></td><td class="n">${fmt(c.cfp, 'XPF')}</td></tr>`).join('')}
+      <tr><td colspan="3"><b>Total journée</b> <span class="mut">(carte ${fmt(s.carteCfp,'XPF')} · cash ≈ ${fmt(s.cashCfp,'XPF')})</span></td><td class="n"><b>${fmt(s.totalCfp, 'XPF')}</b></td></tr></table>
+      <p class="mut" style="font-size:13px">AUD et USD convertis au taux des réglages (1 A$ = ${s.rate.AUD} F · 1 US$ = ${s.rate.USD} F), pour le total seulement.</p>
+      <p><b>Espèces en caisse</b> (à compter séparément) :<br>${fmt(s.caisse[0].v,'XPF')} · ${fmt(s.caisse[1].v,'AUD')} · ${fmt(s.caisse[2].v,'USD')}</p></div>
     <h2>Reste à encaisser</h2><div class="card"><table>${s.attente.map(a => `<tr><td>${a.d}</td><td class="n">${a.nb} encaissement(s)</td><td class="n"><b>${fmt(a.v, a.d)}</b></td></tr>`).join('')}</table></div>
     <h2>Bateaux · taux d'occupation ${s.taux} %</h2><div class="card"><table><tr><th>Départ</th><th>Skipper</th><th>Bracelet</th><th class="n">Passagers</th><th class="n">Taux</th></tr>
       ${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
@@ -271,7 +278,8 @@ function renderCompta() {
     <button onclick="cloture(this)">Clôturer · PDF</button></div>` + comptaHtml(K, s);
 }
 // PDF de clôture : page 1 visuelle, page 2 détail. Mise en page en tableaux (le convertisseur PDF de Google ignore flex/grid)
-const SER = {a:'#0f9a92', e:'#eb6834', b:'#2a78d6'}; // palette validée (dataviz) : lagon, corail, bleu
+const SER = {a:'#0f9a92', e:'#eb6834', b:'#2a78d6'};
+const PAYC = {carte:'#eb6834', xpf:'#0f9a92', aud:'#2a78d6', usd:'#eda100'}; // palette validée (dataviz), libellés toujours visibles // palette validée (dataviz) : lagon, corail, bleu
 function bar(parts, h) { // barre empilée dessinée en bordures (le convertisseur PDF de Google ignore les fonds) ; libellé sous chaque segment
   const tot = parts.reduce((s, p) => s + p[0], 0) || 1, seg = parts.filter(p => p[0] > 0);
   return `<table style="width:100%;border-collapse:separate;border-spacing:3px 0"><tr>${seg.map(p =>
@@ -351,15 +359,23 @@ function bilanPage(K, s) {
       <div style="font-size:15px;margin-top:4px;opacity:.85;text-transform:capitalize">${jour}</div>
 </div><svg width="794" height="34" viewBox="0 0 794 34" style="display:block"><rect width="794" height="34" fill="#fff"/><path d="M0 0 H794 V14 Q695 34 596 14 T397 14 T199 14 T0 14Z" fill="${GK.lagon}"/><path d="M0 0 H794 V6 Q695 26 596 6 T397 6 T199 6 T0 6Z" fill="${GK.deep}"/></svg>
     <div style="padding:8px 40px 34px">
-      <div style="display:flex;gap:12px">${tile(s.pax, 'Passagers', K.deps.length + ' bateaux', GK.aqua, GK.deep)}${tile(fmt(sum('XPF'), 'XPF'), 'Encaissé en CFP', nb('XPF') + ' encaissement(s)', GK.lagon, '#fff')}
-        ${tile(devs.length > 1 ? devs.filter(d => d !== 'XPF').map(d => fmt(sum(d), d)).join(' · ') : '—', 'Encaissé en dollars', 'cash AUD / USD', GK.aqua, GK.deep)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places', GK.deep, '#fff')}</div>
-      <div style="display:flex;gap:28px;margin-top:22px">
+      <div style="display:flex;gap:12px">
+        <div style="flex:2;background:${GK.deep};color:#fff;border-radius:16px;padding:16px 18px"><div style="font-size:12px;font-weight:600;opacity:.8">Chiffre du jour (équivalent CFP)</div>
+          <div style="${T};font-size:38px;line-height:1.1;margin-top:4px">${fmt(s.totalCfp, 'XPF')}</div>
+          <div style="font-size:12px;opacity:.85;margin-top:2px">Carte ${fmt(s.carteCfp, 'XPF')} · Cash ≈ ${fmt(s.cashCfp, 'XPF')}</div></div>
+        ${tile(s.pax, 'Passagers', s.adultes + ' A · ' + s.enfants + ' E · ' + s.bebes + ' B', GK.aqua, GK.deep)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', GK.lagon, '#fff')}</div>
+      <div style="${T};font-size:20px;margin-top:22px">Encaissements par mode</div>
+      <div style="display:flex;gap:10px;margin-top:8px">${s.modes.map(m => `<div style="flex:1;border:1px solid #dce9e8;border-top:6px solid ${m.c};border-radius:12px;padding:12px 12px 10px">
+          <div style="font-size:12px;font-weight:700">${m.l}</div><div style="${T};font-size:22px;margin-top:2px">${fmt(m.v, m.d)}</div>
+          <div style="font-size:11px;color:${GK.mut}">${m.nb} encaissement(s)${m.d !== 'XPF' && m.v ? ' · ≈ ' + fmt(m.cfp, 'XPF') : ''}</div></div>`).join('')}</div>
+      <div style="display:flex;gap:3px;height:16px;margin-top:10px">${s.totalCfp ? s.modes.filter(m => m.cfp).map(m => `<div style="width:${m.cfp / s.totalCfp * 100}%;background:${m.c};border-radius:4px"></div>`).join('') : '<div style="flex:1;background:#eef3f3;border-radius:4px"></div>'}</div>
+      <div style="font-size:11px;color:${GK.mut};margin-top:4px">Part de chaque mode dans le chiffre du jour : ${s.modes.filter(m => m.cfp).map(m => m.l + ' ' + Math.round(m.cfp / (s.totalCfp || 1) * 100) + ' %').join(' · ') || '—'} · taux : 1 A$ = ${s.rate.AUD} F, 1 US$ = ${s.rate.USD} F</div>
+      <div style="display:flex;gap:24px;margin-top:22px;align-items:flex-start">
         <div style="flex:1"><div style="${T};font-size:20px">Passagers</div><div style="display:flex;align-items:center;gap:18px;margin-top:6px">${donutBox}<div style="flex:1;font-size:14px">${legend}</div></div></div>
-        <div style="flex:1"><div style="${T};font-size:20px">Encaissements</div>${devs.map(encRow).join('')}
-          <div style="font-size:11px;color:${GK.mut}"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${GK.lagon}"></span> Cash &nbsp; <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${GK.corail}"></span> Carte</div></div></div>
-      <div style="display:flex;gap:12px;margin-top:20px">
-        <div style="flex:1;background:${GK.deep};color:#fff;border-radius:16px;padding:16px 18px"><div style="font-size:12px;opacity:.8">Espèces à avoir en caisse</div><div style="${T};font-size:22px;margin-top:4px">${devs.map(d => fmt(sum(d, 'Cash'), d)).join(' + ')}</div></div>
-        ${reste.length ? `<div style="flex:1;background:#fde7dd;color:#8a2f0c;border-radius:16px;padding:16px 18px"><div style="font-size:12px">⚠ Reste à encaisser</div><div style="${T};font-size:22px;margin-top:4px">${reste.map(x => fmt(x.v, x.d)).join(' + ')}</div></div>` : ''}</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:10px;padding-top:6px">
+          <div style="background:${GK.deep};color:#fff;border-radius:16px;padding:14px 18px"><div style="font-size:12px;opacity:.8">Espèces à avoir en caisse (par devise)</div>
+            ${[['XPF','CFP'],['AUD','AUD'],['USD','USD']].map(([d, l]) => `<div style="display:flex;justify-content:space-between;margin-top:4px"><span>${l}</span><span style="${T};font-size:19px">${fmt(sum(d, 'Cash'), d)}</span></div>`).join('')}</div>
+          ${reste.length ? `<div style="background:#fde7dd;color:#8a2f0c;border-radius:16px;padding:14px 18px"><div style="font-size:12px">⚠ Reste à encaisser</div><div style="${T};font-size:19px;margin-top:4px">${reste.map(x => fmt(x.v, x.d)).join(' · ')}</div></div>` : ''}</div></div>
       <div style="${T};font-size:20px;margin-top:24px">Remplissage des bateaux</div>
       <div style="display:flex;gap:6px;margin-top:10px">${cols || '<p>Aucun départ.</p>'}</div>
       <div style="font-size:11px;color:${GK.mut};margin-top:10px">Pastille = couleur du bracelet · colonne foncée = bateau complet · détail des réservations en page 2</div>
