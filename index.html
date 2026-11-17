@@ -196,17 +196,22 @@ function renderCaisse() {
 // Image du départ pour le groupe Facebook (texte seul : un logo externe bloquerait l'export du canvas)
 function exportDep(id) {
   const d = C.deps.find(x => x.id === id), list = C.resas.filter(r => r.depart === id && r.statut !== 'annulé');
-  const W = 1080, H = 560 + list.length * 64 + (Number(d.bloquees) ? 64 : 0), cv = document.createElement('canvas');
+  const W = 1080, H = 640 + list.length * 64 + (Number(d.bloquees) ? 64 : 0), cv = document.createElement('canvas');
   cv.width = W; cv.height = H; const x = cv.getContext('2d'), F = 'px -apple-system,system-ui,Roboto,sans-serif';
   x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.fillStyle = col(d.couleur); x.fillRect(0, 0, W, 28); x.fillRect(0, H - 28, W, 28);
   x.fillStyle = '#0d2238'; x.font = '600 36' + F; x.fillText('GAKIS · Îlot Maître', 60, 100);
   x.font = '800 150' + F; x.fillText(d.heure, 60, 260);
   x.font = '600 40' + F; x.textAlign = 'right'; x.fillText(d.pris + ' / ' + d.capacite + ' passagers', W - 60, 255); x.textAlign = 'left';
-  x.font = '400 38' + F; x.fillText('Retour ' + d.retour + '   ·   Skipper ' + (d.skipper || '—'), 60, 330);
-  x.fillStyle = col(d.couleur); x.beginPath(); x.arc(78, 398, 20, 0, 7); x.fill(); x.strokeStyle = '#0003'; x.lineWidth = 2; x.stroke();
-  x.fillStyle = '#0d2238'; x.font = '700 38' + F; x.fillText('Bracelet ' + (d.couleur || '—'), 112, 411);
-  x.fillStyle = '#dde4ea'; x.fillRect(60, 450, W - 120, 2);
-  x.font = '400 34' + F; let y = 510, last = '';
+  // répartition des passagers, bien visible pour le groupe
+  const nT = t => list.filter(r => r.type === t).length, pl = (n, a, b) => n + ' ' + (n > 1 ? b : a);
+  const rep = [pl(nT('adulte'), 'adulte', 'adultes'), pl(nT('enfant'), 'enfant', 'enfants'), pl(nT('bebe'), 'bébé', 'bébés')].join('  ·  ');
+  x.fillStyle = '#e8f1fc'; x.fillRect(60, 300, W - 120, 76); x.fillStyle = '#0b5fa5'; x.fillRect(60, 300, 8, 76);
+  x.fillStyle = '#0d2238'; x.font = '700 42' + F; x.fillText(rep, 92, 353);
+  x.font = '400 38' + F; x.fillText('Retour ' + d.retour + '   ·   Skipper ' + (d.skipper || '—'), 60, 440);
+  x.fillStyle = col(d.couleur); x.beginPath(); x.arc(78, 498, 20, 0, 7); x.fill(); x.strokeStyle = '#0003'; x.lineWidth = 2; x.stroke();
+  x.fillStyle = '#0d2238'; x.font = '700 38' + F; x.fillText('Bracelet ' + (d.couleur || '—'), 112, 511);
+  x.fillStyle = '#dde4ea'; x.fillRect(60, 550, W - 120, 2);
+  x.font = '400 34' + F; let y = 610, last = '';
   list.forEach(r => {
     x.fillStyle = '#0d2238'; x.fillText(r.prenom + ' ' + r.nom + (r.type === 'enfant' ? ' (enfant)' : r.type === 'bebe' ? ' (bébé)' : ''), 60, y);
     x.fillStyle = '#5b6b7c'; x.textAlign = 'right'; x.fillText(r.groupe === last ? '' : r.tel, W - 60, y); x.textAlign = 'left';
