@@ -271,13 +271,13 @@ function renderCompta() {
     <button onclick="cloture(this)">Clôturer · PDF</button></div>` + comptaHtml(K, s);
 }
 // PDF de clôture : page 1 visuelle, page 2 détail. Mise en page en tableaux (le convertisseur PDF de Google ignore flex/grid)
-const SER = {a:'#2a78d6', e:'#eb6834', b:'#1baf7a'};
+const SER = {a:'#0f9a92', e:'#eb6834', b:'#2a78d6'}; // palette validée (dataviz) : lagon, corail, bleu
 function bar(parts, h) { // barre empilée dessinée en bordures (le convertisseur PDF de Google ignore les fonds) ; libellé sous chaque segment
   const tot = parts.reduce((s, p) => s + p[0], 0) || 1, seg = parts.filter(p => p[0] > 0);
   return `<table style="width:100%;border-collapse:separate;border-spacing:3px 0"><tr>${seg.map(p =>
     `<td style="width:${p[0] / tot * 100}%;border-top:${h||22}px solid ${p[1]};padding:3px 0 0;font-size:10px;font-weight:bold;color:#0d2238">${p[2] || ''}</td>`).join('') || `<td style="border-top:${h||22}px solid #e6eef5"></td>`}</tr></table>`;
 }
-function pdfHtml(K, s) {
+function pdfHtml(K, s, img) {
   const jour = new Date(K.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
   const sum = (d, m) => s.caisse.filter(c => c.d === d && (!m || c.m === m)).reduce((t, c) => t + c.v, 0);
   const nb = d => s.caisse.filter(c => c.d === d).reduce((t, c) => t + c.nb, 0);
@@ -304,11 +304,73 @@ function pdfHtml(K, s) {
     ${s.tx.slice().sort((a, b) => String(a.dep.heure).localeCompare(b.dep.heure)).map(t => `<tr><td>${t.dep.heure || ''}</td><td>${t.groupe}</td><td>${esc(t.noms)}</td><td>${lbl(t)}</td><td class="n">${fmt(t.montant, t.devise)}</td><td>${t.mode}</td><td>${t.statut}</td></tr>`).join('')}</table>
     <p style="font-size:10px;color:#5b6b7c">A = adulte, E = enfant 2–9 ans, B = bébé. Une ligne = un encaissement (groupe payé ensemble ou personne seule).</p></div>`;
   return `<meta charset="utf-8"><style>body{font:12px Helvetica,Arial,sans-serif;color:#0d2238}h2{font-size:14px;margin:18px 0 6px}
-    table.t{width:100%;border-collapse:collapse}.t td,.t th{padding:5px 4px;border-bottom:1px solid #dde4ea;text-align:left;font-size:11px}.t th{border-bottom:2px solid #0b3d6b}.n{text-align:right}</style>${p1}${p2}`;
+    table.t{width:100%;border-collapse:collapse}.t td,.t th{padding:5px 4px;border-bottom:1px solid #dde4ea;text-align:left;font-size:11px}.t th{border-bottom:2px solid #0b3d6b}.n{text-align:right}</style>${img ? `<img src="${img}" style="width:100%">` : p1}${p2}`;
+}
+// Page 1 du bilan « à la Gakis » : dessinée en HTML (polices, aplats), photographiée par html2canvas puis mise en image dans le PDF
+const H2C = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+const GFONTS = 'https://fonts.googleapis.com/css2?family=Secular+One&family=Work+Sans:wght@400;600;700&display=swap';
+const GK = {deep:'#015450', lagon:'#0f9a92', aqua:'#d7f7fc', mint:'#96fef9', corail:'#eb6834', bleu:'#2a78d6', ink:'#0d2b2a', mut:'#4f6b69'};
+const loadScript = src => new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
+async function bilanImage(K, s) {
+  if (!window.html2canvas) await loadScript(H2C);
+  if (!document.getElementById('gkfonts')) document.head.insertAdjacentHTML('beforeend', `<link id="gkfonts" rel="stylesheet" href="${GFONTS}">`);
+  await Promise.all(['400 20px "Secular One"', '400 14px "Work Sans"', '700 14px "Work Sans"'].map(f => document.fonts.load(f)));
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;left:-3000px;top:0;width:794px;background:#fff';
+  el.innerHTML = bilanPage(K, s);
+  document.body.appendChild(el);
+  try { return (await html2canvas(el, {scale: 2, backgroundColor: '#fff', logging: false})).toDataURL('image/jpeg', 0.9); }
+  finally { el.remove(); }
+}
+function bilanPage(K, s) {
+  const T = "font-family:'Secular One',sans-serif", jour = new Date(K.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const sum = (d, m) => s.caisse.filter(c => c.d === d && (!m || c.m === m)).reduce((t, c) => t + c.v, 0);
+  const nb = d => s.caisse.filter(c => c.d === d).reduce((t, c) => t + c.nb, 0);
+  const devs = ['XPF', 'AUD', 'USD'].filter(d => d === 'XPF' || sum(d));
+  const tile = (v, l, sub, bg, fg) => `<div style="flex:1;background:${bg};border-radius:16px;padding:16px 16px 14px;color:${fg}"><div style="font-size:12px;font-weight:600;opacity:.8">${l}</div><div style="${T};font-size:30px;line-height:1.15;margin-top:4px">${v}</div><div style="font-size:11px;opacity:.75;margin-top:2px">${sub}</div></div>`;
+  // anneau passagers
+  const parts = [[s.adultes, SER.a, 'Adultes'], [s.enfants, SER.e, 'Enfants 2–9 ans'], [s.bebes, SER.b, 'Bébés']], tot = s.pax || 1, R = 62, C = 2 * Math.PI * R;
+  let off = 0; const arcs = parts.filter(p => p[0]).map(p => { const len = p[0] / tot * C, g = s.pax > 1 && parts.filter(q => q[0]).length > 1 ? 3 : 0, a = `<circle r="${R}" cx="80" cy="80" fill="none" stroke="${p[1]}" stroke-width="26" stroke-dasharray="${Math.max(0, len - g)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"/>`; off += len; return a; }).join('');
+  const donut = `<svg width="160" height="160" viewBox="0 0 160 160"><circle r="${R}" cx="80" cy="80" fill="none" stroke="#eef3f3" stroke-width="26"/>${arcs}</svg>`;
+  const donutBox = `<div style="position:relative;width:160px;height:160px;flex:none">${donut}<div style="position:absolute;left:0;right:0;top:56px;text-align:center;${T};font-size:34px;line-height:1">${s.pax}</div><div style="position:absolute;left:0;right:0;top:94px;text-align:center;font-size:11px;color:${GK.mut}">passagers</div></div>`;
+  const legend = parts.map(p => `<div style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:14px;height:14px;border-radius:4px;background:${p[1]}"></span><span style="flex:1">${p[2]}</span><b style="${T};font-size:20px">${p[0]}</b></div>`).join('');
+  const encRow = d => { const c = sum(d, 'Cash'), k = sum(d, 'Carte'), t = c + k || 1;
+    return `<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>${d}</b><span style="${T};font-size:20px">${fmt(c + k, d)}</span></div>
+      <div style="display:flex;gap:3px;height:14px;margin-top:4px">${c ? `<div style="width:${c / t * 100}%;background:${GK.lagon};border-radius:4px"></div>` : ''}${k ? `<div style="width:${k / t * 100}%;background:${GK.corail};border-radius:4px"></div>` : ''}${c + k ? '' : '<div style="flex:1;background:#eef3f3;border-radius:4px"></div>'}</div>
+      <div style="font-size:11px;color:${GK.mut};margin-top:3px">${nb(d)} encaissement(s)${c ? ' · cash ' + fmt(c, d) : ''}${k ? ' · carte ' + fmt(k, d) : ''}</div></div>`; };
+  const reste = s.attente.filter(x => x.v);
+  const cols = K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length, c = Number(d.capacite) || 12, pc = Math.min(100, p / c * 100);
+    return `<div style="flex:1;min-width:0;text-align:center">
+      <div style="height:190px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center"><div style="font-size:13px;font-weight:700;margin-bottom:4px">${p}/${c}</div><div style="width:62%;max-width:48px;height:160px;background:#e3f4f3;border-radius:6px 6px 2px 2px;display:flex;align-items:flex-end"><div style="width:100%;height:${Math.max(pc, 2) * 1.6}px;background:${pc >= 100 ? GK.deep : GK.lagon};border-radius:6px 6px 2px 2px"></div></div></div>
+      <div style="height:2px;background:#cfdcdb"></div><div style="${T};font-size:15px;margin-top:6px">${d.heure}</div>
+      <div style="width:12px;height:12px;border-radius:6px;background:${col(d.couleur)};border:1px solid #0002;margin:3px auto 0"></div></div>`; }).join('');
+  return `<div style="font-family:'Work Sans',sans-serif;color:${GK.ink};font-size:13px">
+    <div style="background:${GK.deep};color:#fff;padding:30px 40px 18px">
+      <div style="${T};font-size:16px;letter-spacing:3px;color:${GK.mint}">GAKIS · ÎLOT MAÎTRE</div>
+      <div style="${T};font-size:34px;line-height:1.1;margin-top:6px">Bilan de la journée</div>
+      <div style="font-size:15px;margin-top:4px;opacity:.85;text-transform:capitalize">${jour}</div>
+</div><svg width="794" height="34" viewBox="0 0 794 34" style="display:block"><rect width="794" height="34" fill="#fff"/><path d="M0 0 H794 V14 Q695 34 596 14 T397 14 T199 14 T0 14Z" fill="${GK.lagon}"/><path d="M0 0 H794 V6 Q695 26 596 6 T397 6 T199 6 T0 6Z" fill="${GK.deep}"/></svg>
+    <div style="padding:8px 40px 34px">
+      <div style="display:flex;gap:12px">${tile(s.pax, 'Passagers', K.deps.length + ' bateaux', GK.aqua, GK.deep)}${tile(fmt(sum('XPF'), 'XPF'), 'Encaissé en CFP', nb('XPF') + ' encaissement(s)', GK.lagon, '#fff')}
+        ${tile(devs.length > 1 ? devs.filter(d => d !== 'XPF').map(d => fmt(sum(d), d)).join(' · ') : '—', 'Encaissé en dollars', 'cash AUD / USD', GK.aqua, GK.deep)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places', GK.deep, '#fff')}</div>
+      <div style="display:flex;gap:28px;margin-top:22px">
+        <div style="flex:1"><div style="${T};font-size:20px">Passagers</div><div style="display:flex;align-items:center;gap:18px;margin-top:6px">${donutBox}<div style="flex:1;font-size:14px">${legend}</div></div></div>
+        <div style="flex:1"><div style="${T};font-size:20px">Encaissements</div>${devs.map(encRow).join('')}
+          <div style="font-size:11px;color:${GK.mut}"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${GK.lagon}"></span> Cash &nbsp; <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${GK.corail}"></span> Carte</div></div></div>
+      <div style="display:flex;gap:12px;margin-top:20px">
+        <div style="flex:1;background:${GK.deep};color:#fff;border-radius:16px;padding:16px 18px"><div style="font-size:12px;opacity:.8">Espèces à avoir en caisse</div><div style="${T};font-size:22px;margin-top:4px">${devs.map(d => fmt(sum(d, 'Cash'), d)).join(' + ')}</div></div>
+        ${reste.length ? `<div style="flex:1;background:#fde7dd;color:#8a2f0c;border-radius:16px;padding:16px 18px"><div style="font-size:12px">⚠ Reste à encaisser</div><div style="${T};font-size:22px;margin-top:4px">${reste.map(x => fmt(x.v, x.d)).join(' + ')}</div></div>` : ''}</div>
+      <div style="${T};font-size:20px;margin-top:24px">Remplissage des bateaux</div>
+      <div style="display:flex;gap:6px;margin-top:10px">${cols || '<p>Aucun départ.</p>'}</div>
+      <div style="font-size:11px;color:${GK.mut};margin-top:10px">Pastille = couleur du bracelet · colonne foncée = bateau complet · détail des réservations en page 2</div>
+    </div></div>`;
 }
 async function cloture(btn) {
   btn.disabled = true; btn.textContent = 'PDF…';
-  const html = pdfHtml(K, stats(K));
+  const s = stats(K);
+  let img = null;
+  try { img = await bilanImage(K, s); } catch (e) { img = null; } // sans réseau : version simple
+  const html = pdfHtml(K, s, img);
   try {
     const b64 = await call('pdf', PIN, html), name = 'gakis-cloture-' + K.date + '.pdf';
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
