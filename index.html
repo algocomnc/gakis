@@ -62,9 +62,13 @@ function seg(key, opts, cur, i) {
   return '<div class="seg">' + opts.map(([v,l]) => `<button type="button" class="${v===cur?'on':''}" onclick="setv('${key}','${v}',${i??-1})">${l}</button>`).join('') + '</div>';
 }
 function setv(k, v, i) { if (k === 'ensemble') v = !!v; if (i >= 0) S.people[i][k] = v; else S[k] = v; renderResa(); }
+// Carte = toujours en francs CFP (terminal local) ; la devise ne se choisit qu'en cash
+const PAY = (mode, devise, i) => `<label>By</label>${seg('mode',[['Cash','Cash'],['Carte','Card']],mode,i)}` +
+  (mode === 'Carte' ? '<p class="mut" style="margin:8px 0 0">Card payments are charged in CFP francs.</p>' : `<label>Currency</label>${seg('devise',[['AUD','AUD $'],['XPF','CFP francs']],devise,i)}`);
 function total() {
   const t = {};
-  S.people.forEach(p => { const d = S.ensemble ? S.devise : p.devise; t[d] = (t[d]||0) + PUB.prices[p.type][d]; });
+  S.people.forEach(p => { const m = S.ensemble ? S.mode : p.mode, d = m === 'Carte' ? 'XPF' : (S.ensemble ? S.devise : p.devise);
+    t[d] = (t[d]||0) + PUB.prices[p.type][m === 'Carte' ? 'CARTE' : d]; });
   return Object.entries(t).map(([d,n]) => fmt(n,d)).join(' + ') || '0';
 }
 function renderResa(err) {
@@ -79,13 +83,13 @@ function renderResa(err) {
      <div class="row"><div><label>First name</label><input id="pf${i}" value="${esc(p.prenom)}" oninput="S.people[${i}].prenom=this.value" autocomplete="given-name"></div>
      <div><label>Last name</label><input id="pn${i}" value="${esc(p.nom)}" oninput="S.people[${i}].nom=this.value" autocomplete="family-name"></div></div>
      <label>Age</label>${seg('type', TYPES.map(([v,l])=>[v,l]), p.type, i)}
-     ${many && !S.ensemble ? `<label>Pays in</label>${seg('devise',[['AUD','AUD $'],['XPF','CFP francs']],p.devise,i)}<label>By</label>${seg('mode',[['Cash','Cash'],['Carte','Card']],p.mode,i)}` : ''}
+     ${many && !S.ensemble ? PAY(p.mode, p.devise, i) : ''}
      ${i ? `<p><button class="sm no" type="button" onclick="S.people.splice(${i},1);renderResa()">Remove</button></p>` : ''}</div>`).join('');
   h += `<button class="sec" type="button" onclick="S.people.push({prenom:'',nom:'',type:'adulte',devise:S.devise,mode:S.mode});renderResa()">+ Add a person</button>`;
   h += `<h2>3. Phone number</h2><div class="card"><label>WhatsApp number with country code — we will contact you on WhatsApp if needed while you are on the island</label><input id="tel" type="tel" value="${esc(S.tel)}" oninput="S.tel=this.value" autocomplete="tel"></div>`;
   h += '<h2>4. Payment at the desk</h2><div class="card">';
   if (many) h += '<label>Pay</label>' + seg('ensemble', [['1','All together'],['','Separately']], S.ensemble?'1':'');
-  if (!many || S.ensemble) h += `<label>Currency</label>${seg('devise',[['AUD','AUD $'],['XPF','CFP francs']],S.devise)}<label>By</label>${seg('mode',[['Cash','Cash'],['Carte','Card']],S.mode)}`;
+  if (!many || S.ensemble) h += PAY(S.mode, S.devise);
   h += `<div class="total">Total: ${total()}</div></div>`;
   h += (err ? `<div class="err">${esc(err)}</div>` : '') + `<button class="big" ${busy?'disabled':''} onclick="submitResa()">${busy?'Booking…':'Book my seat'}</button><p class="mut">Please be at the desk 10 minutes before departure.</p>`;
   $('#app').innerHTML = h;
@@ -156,9 +160,10 @@ function renderCaisse() {
      <div class="row"><div><label>Skipper</label><select id="ns">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===''?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div><div><label>Places</label><input id="np" type="number" value="${C.capacite}"></div></div>
      <p><button onclick="act('addDep',{heure:$('#nh').value,couleur:$('#nc').value,skipper:$('#ns').value,capacite:$('#np').value})">Ajouter</button>
      <b style="margin-left:10px;color:${FLASH.startsWith('⚠')?'var(--warn)':'var(--ok)'}">${esc(FLASH)}</b></p></div>`;
-  h += `<details class="card"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}</label>
+  const taux = Number((C.reglages.find(r => r[0] === 'Taux XPF pour 1 AUD') || [])[1]) || 1;
+  h += `<details class="card"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}${k.includes('AUD (en XPF)') ? ' → <b>A$' + Math.ceil(Number(v) / taux) + '</b>' : ''}</label>
      <input value="${esc(v)}" onchange="act('setting',{key:${esc(JSON.stringify(k))},value:this.value})">`).join('')}
-     <p class="mut">Les nouvelles résas prennent le nouveau prix. Les résas déjà faites gardent leur prix.</p></details>`;
+     <p class="mut">Tous les prix en CFP. Prix AUD = prix « AUD (en XPF) » ÷ taux, arrondi au dollar au-dessus. Les résas déjà faites gardent leur prix.</p></details>`;
   const groups = {};
   C.resas.slice().reverse().forEach(r => (groups[r.groupe] = groups[r.groupe] || []).push(r));
   const list = Object.values(groups).filter(g => filt === 'tout' || g.some(r => r.statut === 'attente'));
