@@ -43,7 +43,7 @@ const COLORS = {bleu:'#1e5bd8',cyan:'#19c3dd',vert:'#2e9d4f',jaune:'#f5c518',ora
 const col = c => COLORS[String(c||'').trim().toLowerCase()] || '#ccc';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt = (n, d) => d === 'AUD' ? 'A$' + n : Number(n).toLocaleString('fr-FR') + ' XPF';
+const fmt = (n, d) => d === 'AUD' ? 'A$' + n : d === 'USD' ? 'US$' + n : Number(n).toLocaleString('fr-FR') + ' XPF';
 const API = 'https://script.google.com/macros/s/AKfycbz2qCzvJuEiEthDIPyqn1AnPU1nnV990Phxccod0VuX-MGm-6mxgJ9e7hpHbnO0QmT6/exec';
 const call = (fn, ...a) => window.google && google.script
   ? new Promise((ok, ko) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => ko(e.message || e))[fn](...a))
@@ -64,7 +64,7 @@ function seg(key, opts, cur, i) {
 function setv(k, v, i) { if (k === 'ensemble') v = !!v; if (i >= 0) S.people[i][k] = v; else S[k] = v; renderResa(); }
 // Carte = toujours en francs CFP (terminal local) ; la devise ne se choisit qu'en cash
 const PAY = (mode, devise, i) => `<label>By</label>${seg('mode',[['Cash','Cash'],['Carte','Card']],mode,i)}` +
-  (mode === 'Carte' ? '<p class="mut" style="margin:8px 0 0">Card payments are charged in CFP francs.</p>' : `<label>Currency</label>${seg('devise',[['AUD','AUD $'],['XPF','CFP francs']],devise,i)}`);
+  (mode === 'Carte' ? '<p class="mut" style="margin:8px 0 0">Card payments are charged in CFP francs.</p>' : `<label>Currency</label>${seg('devise',[['AUD','AUD $'],['USD','US $'],['XPF','CFP francs']],devise,i)}`);
 function total() {
   const t = {};
   S.people.forEach(p => { const m = S.ensemble ? S.mode : p.mode, d = m === 'Carte' ? 'XPF' : (S.ensemble ? S.devise : p.devise);
@@ -160,10 +160,10 @@ function renderCaisse() {
      <div class="row"><div><label>Skipper</label><select id="ns">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===''?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div><div><label>Places</label><input id="np" type="number" value="${C.capacite}"></div></div>
      <p><button onclick="act('addDep',{heure:$('#nh').value,couleur:$('#nc').value,skipper:$('#ns').value,capacite:$('#np').value})">Ajouter</button>
      <b style="margin-left:10px;color:${FLASH.startsWith('⚠')?'var(--warn)':'var(--ok)'}">${esc(FLASH)}</b></p></div>`;
-  const taux = Number((C.reglages.find(r => r[0] === 'Taux XPF pour 1 AUD') || [])[1]) || 1;
-  h += `<details class="card"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}${k.includes('AUD (en XPF)') ? ' → <b>A$' + Math.ceil(Number(v) / taux) + '</b>' : ''}</label>
+  const taux = d => Number((C.reglages.find(r => r[0] === 'Taux XPF pour 1 ' + d) || [])[1]) || 1;
+  h += `<details class="card"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}${/(AUD|USD) \(en XPF\)/.test(k) ? ' → <b>' + fmt(Math.ceil(Number(v) / taux(k.match(/AUD|USD/)[0])), k.match(/AUD|USD/)[0]) + '</b>' : ''}</label>
      <input value="${esc(v)}" onchange="act('setting',{key:${esc(JSON.stringify(k))},value:this.value})">`).join('')}
-     <p class="mut">Tous les prix en CFP. Prix AUD = prix « AUD (en XPF) » ÷ taux, arrondi au dollar au-dessus. Les résas déjà faites gardent leur prix.</p></details>`;
+     <p class="mut">Tous les prix en CFP. Prix AUD/USD = prix « (en XPF) » ÷ taux, arrondi au dollar au-dessus. Les résas déjà faites gardent leur prix.</p></details>`;
   const groups = {};
   C.resas.slice().reverse().forEach(r => (groups[r.groupe] = groups[r.groupe] || []).push(r));
   const list = Object.values(groups).filter(g => filt === 'tout' || g.some(r => r.statut === 'attente'));
@@ -242,8 +242,8 @@ function stats(K) {
   const tot = (st, dev, mode) => tx.filter(t => t.statut === st && t.devise === dev && (!mode || t.mode === mode));
   const cap = K.deps.reduce((s, d) => s + Number(d.capacite), 0), pax = live.length;
   return { adultes: n('adulte'), enfants: n('enfant'), bebes: n('bebe'), pax, cap, taux: cap ? Math.round(pax / cap * 100) : 0, tx,
-    caisse: [['Cash','XPF'],['Cash','AUD'],['Carte','XPF'],['Carte','AUD']].map(([m,d]) => { const l = tot('payé', d, m); return { m, d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }),
-    attente: ['XPF','AUD'].map(d => { const l = tot('attente', d); return { d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }) };
+    caisse: [['Cash','XPF'],['Cash','AUD'],['Cash','USD'],['Carte','XPF']].map(([m,d]) => { const l = tot('payé', d, m); return { m, d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }),
+    attente: ['XPF','AUD','USD'].map(d => { const l = tot('attente', d); return { d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }) };
 }
 function comptaHtml(K, s) {
   const lbl = t => [t.a && t.a + ' A', t.e && t.e + ' E', t.b && t.b + ' B'].filter(Boolean).join(' ');
@@ -252,7 +252,7 @@ function comptaHtml(K, s) {
       <tr><td>Bébés (gratuit)</td><td class="n"><b>${s.bebes}</b></td></tr><tr><td><b>Total passagers</b></td><td class="n"><b>${s.pax}</b></td></tr></table></div>
     <h2>Encaissé</h2><div class="card"><table><tr><th>Mode</th><th class="n">Nb encaissements</th><th class="n">Montant</th></tr>
       ${s.caisse.map(c => `<tr><td>${c.m} ${c.d}</td><td class="n">${c.nb}</td><td class="n"><b>${fmt(c.v, c.d)}</b></td></tr>`).join('')}</table>
-      <p><b>Espèces en caisse :</b> ${fmt(s.caisse[0].v,'XPF')} + ${fmt(s.caisse[1].v,'AUD')}</p></div>
+      <p><b>Espèces en caisse :</b> ${fmt(s.caisse[0].v,'XPF')} + ${fmt(s.caisse[1].v,'AUD')} + ${fmt(s.caisse[2].v,'USD')}</p></div>
     <h2>Reste à encaisser</h2><div class="card"><table>${s.attente.map(a => `<tr><td>${a.d}</td><td class="n">${a.nb} encaissement(s)</td><td class="n"><b>${fmt(a.v, a.d)}</b></td></tr>`).join('')}</table></div>
     <h2>Bateaux · taux d'occupation ${s.taux} %</h2><div class="card"><table><tr><th>Départ</th><th>Skipper</th><th>Bracelet</th><th class="n">Passagers</th><th class="n">Taux</th></tr>
       ${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
@@ -283,12 +283,12 @@ function pdfHtml(K, s) {
   const p1 = `<div style="border-left:8px solid #0b3d6b;padding:4px 0 4px 14px"><div style="font-size:12px;color:#5b6b7c">GAKIS · Îlot Maître taxi boat</div><div style="font-size:22px;font-weight:bold;color:#0b3d6b;margin-top:2px">Clôture du ${jour}</div></div>
     <table style="width:100%;border-collapse:separate;border-spacing:8px;margin:10px -8px"><tr>
       ${tile(s.pax, 'Passagers', s.adultes + ' adultes · ' + s.enfants + ' enfants · ' + s.bebes + ' bébés', SER.a)}${tile(fmt(sum('XPF'), 'XPF'), 'Encaissé en XPF', nb('XPF') + ' encaissement(s)', SER.b)}
-      ${tile(fmt(sum('AUD'), 'AUD'), 'Encaissé en AUD', nb('AUD') + ' encaissement(s)', SER.b)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', SER.e)}</tr></table>
+      ${tile(fmt(sum('AUD'), 'AUD') + ' · ' + fmt(sum('USD'), 'USD'), 'Encaissé en dollars', (nb('AUD') + nb('USD')) + ' encaissement(s) · cash', SER.b)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', SER.e)}</tr></table>
     <h2>Passagers</h2>${bar([[s.adultes, SER.a, s.adultes], [s.enfants, SER.e, s.enfants], [s.bebes, SER.b, s.bebes]], 26)}
     <p style="margin:6px 0 0">${lg(SER.a, 'Adultes ' + s.adultes)}${lg(SER.e, 'Enfants 2–9 ans ' + s.enfants)}${lg(SER.b, 'Bébés ' + s.bebes)}</p>
-    <h2>Encaissements</h2><table style="width:100%">${enc('XPF')}${enc('AUD')}</table><p style="margin:4px 0 0">${lg(SER.a, 'Cash')}${lg(SER.e, 'Carte')}</p>
+    <h2>Encaissements</h2><table style="width:100%">${enc('XPF')}${enc('AUD')}${enc('USD')}</table><p style="margin:4px 0 0">${lg(SER.a, 'Cash')}${lg(SER.e, 'Carte')}</p>
     <table style="width:100%;margin-top:12px;border-collapse:separate;border-spacing:0"><tr><td style="border:1px solid #c9dcf3;border-left:6px solid #2a78d6;padding:10px 14px">
-      <b>Espèces à avoir en caisse :</b> ${fmt(sum('XPF', 'Cash'), 'XPF')} + ${fmt(sum('AUD', 'Cash'), 'AUD')}</td></tr></table>
+      <b>Espèces à avoir en caisse :</b> ${fmt(sum('XPF', 'Cash'), 'XPF')} + ${fmt(sum('AUD', 'Cash'), 'AUD')} + ${fmt(sum('USD', 'Cash'), 'USD')}</td></tr></table>
     ${reste.length ? `<table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #f0d9a8;border-left:6px solid #c98500;padding:10px 14px"><b>⚠ Reste à encaisser :</b> ${reste.map(x => fmt(x.v, x.d) + ' (' + x.nb + ')').join(' + ')}</td></tr></table>` : ''}
     <h2>Remplissage des bateaux</h2><table style="width:100%">${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length, c = Number(d.capacite);
       return `<tr><td style="width:50px;font-weight:bold;padding:4px 0">${d.heure}</td><td style="width:14px"><div style="width:0;height:0;border:6px solid ${col(d.couleur)};outline:1px solid #0003"></div></td>
@@ -342,7 +342,7 @@ function renderQr() { // affiche A4 à imprimer (Cmd+P)
     <p style="font-size:14pt;margin:0;color:#5b6b7c">Réservez votre bateau pour l'îlot Maître · 15 min by taxi boat</p>
     <img style="width:95mm;height:95mm;margin:7mm 0 2mm" src="${QR_API}${encodeURIComponent(URL_)}" alt="QR code">
     <div class="steps"><div><b>1</b>Scan the code</div><div><b>2</b>Choose your boat</div><div><b>3</b>Pay at the Gakis desk</div></div>
-    <p style="font-size:11pt;color:#5b6b7c;margin:0">Cash or card · AUD or CFP francs · ${esc(URL_)}</p></div></div>`;
+    <p style="font-size:11pt;color:#5b6b7c;margin:0">Cash: AUD, USD or CFP francs · Card in CFP · ${esc(URL_)}</p></div></div>`;
 }
 
 /* ================= ROUTAGE ================= */
