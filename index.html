@@ -133,13 +133,14 @@ async function loadCaisse() {
   try { C = await call('getCaisse', PIN); try { localStorage.setItem('gakisPin', PIN); } catch(e) {} renderCaisse(); }
   catch (e) { pinScreen(e); }
 }
-let OPEN = new Set(), FLASH = '';
+let OPEN = new Set(), FLASH = '', NEW = {}; // NEW = saisie du formulaire « Nouveau départ », gardée entre deux rafraîchissements
 async function act(action, a) {
   document.activeElement && document.activeElement.blur();
   FLASH = 'Enregistrement…'; renderCaisse();
   try {
     C = await call('caisse', PIN, action, a);
     FLASH = action === 'addDep' ? '✓ Départ de ' + a.heure + ' ajouté' : '✓ Enregistré';
+    if (action === 'addDep') NEW = {};
   } catch (e) { FLASH = '⚠ Pas enregistré : ' + e; }
   renderCaisse(); setTimeout(() => { FLASH = ''; renderCaisse(); }, 4000);
 }
@@ -161,8 +162,8 @@ function renderCaisse() {
         <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:${Number(d.bloquees)}+1})">+1</button>
         <button class="sm" onclick="exportDep('${d.id}')">Exporter</button>
         ${d.pris == d.bloquees ? `<button class="sm no" onclick="if(confirm('Supprimer le départ ${d.heure} ?'))act('delDep',{id:'${d.id}'})">✕</button>` : ''}</div></details>`).join('') + '</div>';
-  h += `<div class="card"><b>Nouveau départ</b><div class="row"><div><label>Heure</label><select id="nh">${TIMES(NEXT())}</select></div><div><label>Couleur</label><select id="nc">${C.couleurs.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div></div>
-     <div class="row"><div><label>Skipper</label><select id="ns">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===''?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div><div><label>Places</label><input id="np" type="number" value="${C.capacite}"></div></div>
+  h += `<div class="card"><b>Nouveau départ</b><div class="row"><div><label>Heure</label><select id="nh" onchange="NEW.heure=this.value">${TIMES(NEW.heure || NEXT())}</select></div><div><label>Couleur</label><select id="nc" onchange="NEW.couleur=this.value">${C.couleurs.map(c=>`<option ${c===NEW.couleur?'selected':''}>${esc(c)}</option>`).join('')}</select></div></div>
+     <div class="row"><div><label>Skipper</label><select id="ns" onchange="NEW.skipper=this.value">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===(NEW.skipper||'')?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div><div><label>Places</label><input id="np" type="number" value="${NEW.capacite || C.capacite}" onchange="NEW.capacite=this.value"></div></div>
      <p><button onclick="act('addDep',{heure:$('#nh').value,couleur:$('#nc').value,skipper:$('#ns').value,capacite:$('#np').value})">Ajouter</button>
      <b style="margin-left:10px;color:${FLASH.startsWith('⚠')?'var(--warn)':'var(--ok)'}">${esc(FLASH)}</b></p></div>`;
   const taux = d => Number((C.reglages.find(r => r[0] === 'Taux XPF pour 1 ' + d) || [])[1]) || 1;
