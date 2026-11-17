@@ -241,10 +241,45 @@ function renderCompta() {
   $('#app').innerHTML = LOGO + TABS() + `<div class="row" style="align-items:end"><div><label>Jour</label><input type="date" value="${K.date}" onchange="loadCompta(this.value)"></div>
     <button onclick="cloture(this)">Clôturer · PDF</button></div>` + comptaHtml(K, s);
 }
+// PDF de clôture : page 1 visuelle, page 2 détail. Mise en page en tableaux (le convertisseur PDF de Google ignore flex/grid)
+const SER = {a:'#2a78d6', e:'#eb6834', b:'#1baf7a'};
+function bar(parts, h) { // barre empilée dessinée en bordures (le convertisseur PDF de Google ignore les fonds) ; libellé sous chaque segment
+  const tot = parts.reduce((s, p) => s + p[0], 0) || 1, seg = parts.filter(p => p[0] > 0);
+  return `<table style="width:100%;border-collapse:separate;border-spacing:3px 0"><tr>${seg.map(p =>
+    `<td style="width:${p[0] / tot * 100}%;border-top:${h||22}px solid ${p[1]};padding:3px 0 0;font-size:10px;font-weight:bold;color:#0d2238">${p[2] || ''}</td>`).join('') || `<td style="border-top:${h||22}px solid #e6eef5"></td>`}</tr></table>`;
+}
+function pdfHtml(K, s) {
+  const jour = new Date(K.date + 'T12:00').toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const sum = (d, m) => s.caisse.filter(c => c.d === d && (!m || c.m === m)).reduce((t, c) => t + c.v, 0);
+  const nb = d => s.caisse.filter(c => c.d === d).reduce((t, c) => t + c.nb, 0);
+  const tile = (v, l, sub, c) => `<td style="width:25%;border:1px solid #dde4ea;border-top:5px solid ${c};padding:10px 12px;vertical-align:top"><div style="font-size:11px;color:#5b6b7c">${l}</div><div style="font-size:24px;font-weight:bold;margin-top:4px">${v}</div><div style="font-size:10px;color:#5b6b7c;margin-top:2px">${sub||''}</div></td>`;
+  const lg = (c, t) => `<span style="display:inline-block;width:0;height:0;border:5px solid ${c};vertical-align:middle"></span> <span style="margin-right:14px">${t}</span>`;
+  const enc = d => { const c = sum(d, 'Cash'), k = sum(d, 'Carte'); return `<tr><td style="width:70px;font-weight:bold;padding:6px 0">${d}</td><td>${bar([[c, SER.a, c ? 'Cash ' + fmt(c, d) : ''], [k, SER.e, k ? 'Carte ' + fmt(k, d) : '']])}</td><td style="width:120px;text-align:right"><b>${fmt(c + k, d)}</b><br><span style="font-size:10px;color:#5b6b7c">${nb(d)} encaissement(s)</span></td></tr>`; };
+  const reste = s.attente.filter(x => x.v);
+  const p1 = `<div style="border-left:8px solid #0b3d6b;padding:4px 0 4px 14px"><div style="font-size:12px;color:#5b6b7c">GAKIS · Îlot Maître taxi boat</div><div style="font-size:22px;font-weight:bold;color:#0b3d6b;margin-top:2px">Clôture du ${jour}</div></div>
+    <table style="width:100%;border-collapse:separate;border-spacing:8px;margin:10px -8px"><tr>
+      ${tile(s.pax, 'Passagers', s.adultes + ' adultes · ' + s.enfants + ' enfants · ' + s.bebes + ' bébés', SER.a)}${tile(fmt(sum('XPF'), 'XPF'), 'Encaissé en XPF', nb('XPF') + ' encaissement(s)', SER.b)}
+      ${tile(fmt(sum('AUD'), 'AUD'), 'Encaissé en AUD', nb('AUD') + ' encaissement(s)', SER.b)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', SER.e)}</tr></table>
+    <h2>Passagers</h2>${bar([[s.adultes, SER.a, s.adultes], [s.enfants, SER.e, s.enfants], [s.bebes, SER.b, s.bebes]], 26)}
+    <p style="margin:6px 0 0">${lg(SER.a, 'Adultes ' + s.adultes)}${lg(SER.e, 'Enfants 2–9 ans ' + s.enfants)}${lg(SER.b, 'Bébés ' + s.bebes)}</p>
+    <h2>Encaissements</h2><table style="width:100%">${enc('XPF')}${enc('AUD')}</table><p style="margin:4px 0 0">${lg(SER.a, 'Cash')}${lg(SER.e, 'Carte')}</p>
+    <table style="width:100%;margin-top:12px;border-collapse:separate;border-spacing:0"><tr><td style="border:1px solid #c9dcf3;border-left:6px solid #2a78d6;padding:10px 14px">
+      <b>Espèces à avoir en caisse :</b> ${fmt(sum('XPF', 'Cash'), 'XPF')} + ${fmt(sum('AUD', 'Cash'), 'AUD')}</td></tr></table>
+    ${reste.length ? `<table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #f0d9a8;border-left:6px solid #c98500;padding:10px 14px"><b>⚠ Reste à encaisser :</b> ${reste.map(x => fmt(x.v, x.d) + ' (' + x.nb + ')').join(' + ')}</td></tr></table>` : ''}
+    <h2>Remplissage des bateaux</h2><table style="width:100%">${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length, c = Number(d.capacite);
+      return `<tr><td style="width:50px;font-weight:bold;padding:4px 0">${d.heure}</td><td style="width:14px"><div style="width:0;height:0;border:6px solid ${col(d.couleur)};outline:1px solid #0003"></div></td>
+        <td style="width:120px;font-size:11px;color:#5b6b7c">${esc(d.skipper || '—')}</td><td>${bar([[p, '#2a78d6', ''], [Math.max(0, c - p), '#dfe7ef', '']], 14)}</td><td style="width:70px;text-align:right"><b>${p}/${c}</b></td></tr>`; }).join('')}</table>`;
+  const lbl = t => [t.a && t.a + ' A', t.e && t.e + ' E', t.b && t.b + ' B'].filter(Boolean).join(' ');
+  const p2 = `<div style="page-break-before:always"><h1 style="font-size:18px">Détail des réservations · ${K.date}</h1>
+    <table class="t"><tr><th>Départ</th><th>Code</th><th>Noms</th><th>Pers.</th><th class="n">Montant</th><th>Mode</th><th>Statut</th></tr>
+    ${s.tx.slice().sort((a, b) => String(a.dep.heure).localeCompare(b.dep.heure)).map(t => `<tr><td>${t.dep.heure || ''}</td><td>${t.groupe}</td><td>${esc(t.noms)}</td><td>${lbl(t)}</td><td class="n">${fmt(t.montant, t.devise)}</td><td>${t.mode}</td><td>${t.statut}</td></tr>`).join('')}</table>
+    <p style="font-size:10px;color:#5b6b7c">A = adulte, E = enfant 2–9 ans, B = bébé. Une ligne = un encaissement (groupe payé ensemble ou personne seule).</p></div>`;
+  return `<meta charset="utf-8"><style>body{font:12px Helvetica,Arial,sans-serif;color:#0d2238}h2{font-size:14px;margin:18px 0 6px}
+    table.t{width:100%;border-collapse:collapse}.t td,.t th{padding:5px 4px;border-bottom:1px solid #dde4ea;text-align:left;font-size:11px}.t th{border-bottom:2px solid #0b3d6b}.n{text-align:right}</style>${p1}${p2}`;
+}
 async function cloture(btn) {
   btn.disabled = true; btn.textContent = 'PDF…';
-  const css = 'body{font:12px Helvetica,Arial,sans-serif;color:#0d2238}h1{font-size:20px}h2{font-size:15px;margin:16px 0 6px}table{width:100%;border-collapse:collapse}td,th{padding:4px;border-bottom:1px solid #ddd;text-align:left}.n{text-align:right}.mut{color:#666}';
-  const html = `<meta charset="utf-8"><style>${css}</style><h1>Gakis · Îlot Maître · Clôture du ${K.date}</h1>${comptaHtml(K, stats(K))}`;
+  const html = pdfHtml(K, stats(K));
   try {
     const b64 = await call('pdf', PIN, html), name = 'gakis-cloture-' + K.date + '.pdf';
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
