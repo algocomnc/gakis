@@ -27,6 +27,12 @@ button.sm{padding:8px 11px;font-size:14px}button:disabled{opacity:.5}
 .skip .now{font-size:64px;font-weight:800;line-height:1}.skip .seats{font-size:40px;font-weight:800}
 .bar{height:10px;border-radius:5px;background:#e6eef5;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--blue)}
 table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}td.n,th.n{text-align:right;white-space:nowrap}
+.hero{position:relative;border-radius:14px;overflow:hidden;margin-bottom:14px;background:#0b5fa5}
+.hero img{display:block;width:100%;height:190px;object-fit:cover}
+.hero .cap{position:absolute;left:0;right:0;bottom:0;padding:40px 16px 26px;color:#fff;background:linear-gradient(transparent,#0008)}
+.hero .cap b{font-size:22px;display:block}.hero svg{position:absolute;left:0;bottom:-1px;width:100%;height:18px}
+.vivre{list-style:none;padding:0;margin:10px 0 0;text-align:left}.vivre li{padding:8px 0 8px 30px;position:relative;border-bottom:1px solid var(--line)}
+.vivre li span{position:absolute;left:0;top:7px;font-size:18px}
 .x{text-decoration:line-through;opacity:.5}a{color:var(--blue)}
 </style></head>
 <body><div class="wrap" id="app">Loading…</div>
@@ -42,6 +48,11 @@ const API = 'https://script.google.com/macros/s/AKfycbz2qCzvJuEiEthDIPyqn1AnPU1n
 const call = (fn, ...a) => window.google && google.script
   ? new Promise((ok, ko) => google.script.run.withSuccessHandler(ok).withFailureHandler(e => ko(e.message || e))[fn](...a))
   : fetch(API, {method: 'POST', body: JSON.stringify({fn, args: a})}).then(r => r.json()).then(r => { if (!r.ok) throw r.error; return r.data; }, () => { throw 'Pas de connexion, réessaie.'; });
+const IMG_ILOT = 'https://static.wixstatic.com/media/77dba7_f74071bf059f4a8fbfafdf814be456e3~mv2.jpg/v1/fill/w_1000,h_560,q_80/ilot.jpg';
+const IMG_TORTUE = 'https://static.wixstatic.com/media/77dba7_8e210791d09c4fbbbcb2c1f7337a492d~mv2.jpeg/v1/fill/w_1000,h_620,q_80/tortue.jpg';
+const IMG_LOGO = 'https://static.wixstatic.com/media/77dba7_9a4d59e107f2410b9c877ad6b03cdfcf~mv2.png';
+const WAVE = '<svg viewBox="0 0 400 18" preserveAspectRatio="none"><path d="M0 10 Q50 0 100 10 T200 10 T300 10 T400 10 V18 H0Z" fill="#f3f6f9"/></svg>';
+const HERO = (img, title, sub) => `<div class="hero"><img src="${img}" alt="">${title ? `<div class="cap"><b>${title}</b>${sub}</div>` : ''}${WAVE}</div>`;
 const LOGO = '<header><img src="https://static.wixstatic.com/media/77dba7_9a4d59e107f2410b9c877ad6b03cdfcf~mv2.png" alt="Gakis"><div><h1>Îlot Maître taxi boat</h1><div class="mut">Gakis · Nouméa</div></div></header>';
 
 /* ================= TOURISTES ================= */
@@ -61,7 +72,7 @@ function renderResa(err) {
   if (!PUB.deps.length) { $('#app').innerHTML = LOGO + '<div class="card"><b>No boats open for booking right now.</b><p class="mut">Please ask at the Gakis desk.</p></div>'; return; }
   if (S.depart && !PUB.deps.some(d => d.id === S.depart)) S.depart = null;
   const many = S.people.length > 1;
-  let h = LOGO + '<p class="mut">Book your seat, then pay at the Gakis desk. Return trip included.</p>';
+  let h = LOGO + HERO(IMG_ILOT, 'Îlot Maître', '15 min by taxi boat from Nouméa · return trip included') + '<p class="mut">Book your seat here, then pay at the Gakis desk.</p>';
   h += '<h2>1. Choose your boat</h2>' + PUB.deps.map(d => `<div class="card dep ${d.id===S.depart?'sel':''}" onclick="S.depart='${d.id}';renderResa()">
      <div><div class="time">${d.heure}</div><div class="mut">Back from the island ${d.retour}</div></div><div><b>${d.libres}</b> <span class="mut">seat${d.libres>1?'s':''} left</span></div></div>`).join('');
   h += '<h2>2. Who is coming?</h2>' + S.people.map((p,i) => `<div class="card">
@@ -90,7 +101,15 @@ async function submitResa() {
     $('#app').innerHTML = LOGO + `<div class="card" style="text-align:center"><p class="mut">Your booking number</p><div class="code">${r.groupe}</div>
       <p><b>Boat ${r.heure}</b> · back from the island ${r.retour}</p><p>${r.rows.map(x=>esc(x.prenom)).join(', ')}</p>
       <div class="total" style="text-align:center">To pay: ${Object.entries(sums).map(([d,n])=>fmt(n,d)).join(' + ')}</div>
-      <p><b>Show this screen at the Gakis desk to pay.</b><br>Be there 10 minutes before departure.</p></div>`;
+      <p><b>Show this screen at the Gakis desk to pay.</b><br>Be there 10 minutes before departure. Take a screenshot!</p></div>
+      <h2>What awaits you</h2>${HERO(IMG_TORTUE)}<p style="margin:-4px 0 10px"><b>One of the most beautiful lagoons in the world.</b> Îlot Maître is a preserved island 15 minutes from Nouméa.</p>
+      <div class="card"><ul class="vivre">
+        <li><span>🐢</span><b>Lagoon wildlife</b><br><span class="mut" style="position:static;font-size:14px">Snorkel among corals, fish and, with luck, sea turtles</span></li>
+        <li><span>🤿</span><b>Masks and snorkels provided</b><br><span class="mut" style="position:static;font-size:14px">At no extra cost, just ask your skipper</span></li>
+        <li><span>🏝️</span><b>White sand and turquoise water</b><br><span class="mut" style="position:static;font-size:14px">${r.retour ? 'About 3 hours on the island, boat back at ' + r.retour : ''}</span></li>
+        <li><span>🍹</span><b>Food and drinks on the island</b><br><span class="mut" style="position:static;font-size:14px">Restaurant on site (not included) or bring your picnic · sun loungers available</span></li>
+        <li><span>☀️</span><b>Bring</b><br><span class="mut" style="position:static;font-size:14px">Swimsuit, towel, hat, reef-safe sunscreen and water</span></li>
+      </ul></div>`;
   } catch (e) { busy = false; await loadPub(); renderResa(String(e)); }
 }
 async function loadPub() { PUB = await call('getPublic'); }
@@ -306,10 +325,19 @@ async function loadSkipper() {
 
 /* ================= QR ================= */
 const QR_API = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=10&data='; // URL hors template literal : Google retire les « // » dedans
-function renderQr() {
-  $('#app').innerHTML = `<div style="text-align:center;padding-top:30px">${LOGO.replace('<header>','<header style="justify-content:center">')}
-    <h1 style="font-size:34px;margin:20px 0">Book your boat to Îlot Maître</h1><p style="font-size:20px">Scan, choose your boat, pay at the desk</p>
-    <img style="width:min(80vw,420px)" src="${QR_API}${encodeURIComponent(URL_)}" alt="QR code"><p class="mut">${esc(URL_)}</p></div>`;
+function renderQr() { // affiche A4 à imprimer (Cmd+P)
+  document.head.insertAdjacentHTML('beforeend', `<style>@page{size:A4;margin:0}body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .a4{width:210mm;min-height:297mm;margin:0 auto;background:#fff;text-align:center;overflow:hidden}.a4 .wrapq{padding:0 18mm}
+    .a4 .top{position:relative;height:88mm}.a4 .top img{width:100%;height:100%;object-fit:cover;display:block}.a4 .top svg{position:absolute;left:0;bottom:-1px;width:100%;height:12mm}
+    .steps{display:flex;gap:6mm;margin:8mm 0}.steps div{flex:1;border:1px solid #dde4ea;border-radius:4mm;padding:4mm 2mm;font-size:13pt}.steps b{display:block;font-size:20pt;color:#0b5fa5}
+    @media screen{body{background:#dde4ea}.a4{margin:10px auto;box-shadow:0 2px 12px #0002}}#app.wrap{max-width:none;padding:0}</style>`);
+  $('#app').innerHTML = `<div class="a4"><div class="top"><img src="${IMG_ILOT}" alt="">${WAVE.replace('#f3f6f9','#fff')}</div><div class="wrapq">
+    <img src="${IMG_LOGO}" alt="Gakis" style="height:22mm;margin-top:-4mm">
+    <h1 style="font-size:30pt;margin:3mm 0 1mm;color:#0d2238">Book your boat to Îlot Maître</h1>
+    <p style="font-size:14pt;margin:0;color:#5b6b7c">Réservez votre bateau pour l'îlot Maître · 15 min by taxi boat</p>
+    <img style="width:95mm;height:95mm;margin:7mm 0 2mm" src="${QR_API}${encodeURIComponent(URL_)}" alt="QR code">
+    <div class="steps"><div><b>1</b>Scan the code</div><div><b>2</b>Choose your boat</div><div><b>3</b>Pay at the Gakis desk</div></div>
+    <p style="font-size:11pt;color:#5b6b7c;margin:0">Cash or card · AUD or CFP francs · ${esc(URL_)}</p></div></div>`;
 }
 
 /* ================= ROUTAGE ================= */
