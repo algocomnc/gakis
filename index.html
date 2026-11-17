@@ -39,7 +39,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;b
 <script>
 window.onerror = (m, s, l) => { document.getElementById('app').textContent = 'Erreur : ' + m + ' (ligne ' + l + ')'; };
 const PAGE = (new URLSearchParams(location.search).get('p') || 'resa'), URL_ = (location.origin + location.pathname);
-const COLORS = {bleu:'#1e5bd8',cyan:'#19c3dd',vert:'#2e9d4f',jaune:'#f5c518',orange:'#f08a24',rouge:'#d93025',rose:'#ec6aa6',violet:'#7b4fd0',blanc:'#ffffff',noir:'#222',gris:'#999'};
+const COLORS = {bleu:'#1e5bd8',cyan:'#19c3dd',vert:'#2e9d4f',jaune:'#f5c518',orange:'#f08a24',rouge:'#d93025',rose:'#ec6aa6',violet:'#7b4fd0','vert fluo':'#39ff14',blanc:'#ffffff',noir:'#222',gris:'#999'};
 const col = c => COLORS[String(c||'').trim().toLowerCase()] || '#ccc';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -86,7 +86,7 @@ function renderResa(err) {
      ${many && !S.ensemble ? PAY(p.mode, p.devise, i) : ''}
      ${i ? `<p><button class="sm no" type="button" onclick="S.people.splice(${i},1);renderResa()">Remove</button></p>` : ''}</div>`).join('');
   h += `<button class="sec" type="button" onclick="S.people.push({prenom:'',nom:'',type:'adulte',devise:S.devise,mode:S.mode});renderResa()">+ Add a person</button>`;
-  h += `<h2>3. Phone number</h2><div class="card"><label>WhatsApp number with country code — we will contact you on WhatsApp if needed while you are on the island</label><input id="tel" type="tel" value="${esc(S.tel)}" oninput="S.tel=this.value" autocomplete="tel"></div>`;
+  h += `<h2>3. Phone number <span class="mut">(optional)</span></h2><div class="card"><label>WhatsApp number with country code, so we can reach you while you are on the island</label><input id="tel" type="tel" value="${esc(S.tel)}" oninput="S.tel=this.value" autocomplete="tel"></div>`;
   h += '<h2>4. Payment at the desk</h2><div class="card">';
   if (many) h += '<label>Pay</label>' + seg('ensemble', [['1','All together'],['','Separately']], S.ensemble?'1':'');
   if (!many || S.ensemble) h += PAY(S.mode, S.devise);
@@ -181,7 +181,7 @@ function renderCaisse() {
     const due = Object.entries(sums).map(([k,n]) => fmt(n,k)).join(' + ');
     const ids = a => JSON.stringify(a.map(r => r.id)).replace(/"/g,"'");
     return `<div class="card"><div class="dep" style="cursor:default"><div><b style="font-size:20px">${g[0].groupe}</b> · <span class="chip" style="background:${col(d.couleur)}"></span>${d.heure||'?'} ${esc(d.couleur||'')}</div>
-      <a href="tel:${esc(g[0].tel.replace(/\s/g,''))}">${esc(g[0].tel)}</a></div>
+      ${g[0].tel ? `<a href="tel:${esc(g[0].tel.replace(/\s/g,''))}">${esc(g[0].tel)}</a>` : ''}</div>
       ${g.map(r => `<div class="row" style="align-items:center;margin-top:6px"><span class="${r.statut==='annulé'?'x':''}">${esc(r.prenom)} ${esc(r.nom)} <span class="mut">${r.type==='enfant'?'enfant':r.type==='bebe'?'bébé':''}</span></span>
         <span style="text-align:right">${fmt(r.montant,r.devise)} · ${r.mode} <span class="tag ${r.statut==='payé'?'p':r.statut==='annulé'?'x':'a'}">${r.statut}</span>
         ${!ens && r.statut==='attente' ? `<button class="sm ok" onclick="act('statut',{ids:['${r.id}'],value:'payé'})">Payé</button>` : ''}</span></div>`).join('')}
