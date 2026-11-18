@@ -61,7 +61,7 @@ const TYPES = [['adulte','Adult'],['enfant','Child (2–9)'],['bebe','Baby under
 function seg(key, opts, cur, i) {
   return '<div class="seg">' + opts.map(([v,l]) => `<button type="button" class="${v===cur?'on':''}" onclick="setv('${key}','${v}',${i??-1})">${l}</button>`).join('') + '</div>';
 }
-function setv(k, v, i) { if (k === 'ensemble') v = !!v; if (i >= 0) S.people[i][k] = v; else S[k] = v; renderResa(); }
+function setv(k, v, i) { if (k === 'ensemble' || k === 'gyg') v = !!v; if (i >= 0) S.people[i][k] = v; else S[k] = v; renderResa(); }
 // Carte = toujours en francs CFP (terminal local) ; la devise ne se choisit qu'en cash
 const PAY = (mode, devise, i) => `<label>By</label>${seg('mode',[['Cash','Cash'],['Carte','Card']],mode,i)}` +
   (mode === 'Carte' ? '<p class="mut" style="margin:8px 0 0">Card payments are charged in CFP francs.</p>' : `<label>Currency</label>${seg('devise',[['AUD','AUD $'],['USD','US $'],['XPF','CFP francs']],devise,i)}`);
@@ -88,11 +88,14 @@ function renderResa(err) {
      ${i ? `<p><button class="sm no" type="button" onclick="S.people.splice(${i},1);renderResa()">Remove</button></p>` : ''}</div>`).join('');
   h += `<button class="sec" type="button" onclick="S.people.push({prenom:'',nom:'',type:'adulte',devise:S.devise,mode:S.mode});renderResa()">+ Add a person</button>`;
   h += `<h2>3. Phone number <span class="mut">(optional)</span></h2><div class="card"><label>WhatsApp number with country code, so we can reach you while you are on the island</label><input id="tel" type="tel" value="${esc(S.tel)}" oninput="S.tel=this.value" autocomplete="tel"></div>`;
-  h += '<h2>4. Payment at the desk</h2><div class="card">';
+  h += '<h2>4. Payment at the desk</h2><div class="card"><label>Do you already have a GetYourGuide booking?</label>' + seg('gyg', [['','No, I pay at the desk'],['1','Yes, GetYourGuide']], S.gyg?'1':'');
+  if (S.gyg) h += '<div class="total">Nothing to pay</div><p style="margin:0">Come to the Gakis desk, <b>show your GetYourGuide booking</b> and collect your bracelets.</p>';
+  else {
   if (many) h += '<label>Pay</label>' + seg('ensemble', [['1','All together'],['','Separately']], S.ensemble?'1':'');
   if (!many || S.ensemble) h += PAY(S.mode, S.devise);
   h += `<div class="total">Total: ${total()}</div>`;
-  if (S.mode === 'Carte' && (!many || S.ensemble) && PUB.taux) { // équivalence indicative pour les touristes
+  }
+  if (!S.gyg && S.mode === 'Carte' && (!many || S.ensemble) && PUB.taux) { // équivalence indicative pour les touristes
     const x = S.people.reduce((t, p) => t + PUB.prices[p.type].CARTE, 0);
     if (x) h += `<p class="mut" style="text-align:right;margin:-6px 0 0">≈ A$${Math.round(x / PUB.taux.AUD)} · ≈ US$${Math.round(x / PUB.taux.USD)} (indicative, your bank sets the final rate)</p>`;
   }
@@ -106,12 +109,13 @@ async function submitResa() {
   if (S.people.some(p => !p.prenom.trim() || !p.nom.trim())) return renderResa('Please enter first and last name for everyone.');
   busy = true; renderResa();
   try {
-    const r = await call('book', {depart:S.depart, people:S.people, tel:S.tel, ensemble:S.ensemble, devise:S.devise, mode:S.mode});
+    const r = await call('book', {depart:S.depart, people:S.people, tel:S.tel, ensemble:S.ensemble, devise:S.devise, mode:S.mode, gyg:S.gyg});
     const sums = {}; r.rows.forEach(x => sums[x.devise] = (sums[x.devise]||0) + Number(x.montant));
     $('#app').innerHTML = LOGO + `<div class="card" style="text-align:center"><p class="mut">Your booking number</p><div class="code">${r.groupe}</div>
       <p><b>Boat ${r.heure}</b> · back from the island ${r.retour}</p><p>${r.rows.map(x=>esc(x.prenom)).join(', ')}</p>
-      <div class="total" style="text-align:center">To pay: ${Object.entries(sums).map(([d,n])=>fmt(n,d)).join(' + ')}</div>
-      <p><b>Show this screen at the Gakis desk to pay.</b><br>Be there 10 minutes before departure. Take a screenshot!</p></div>
+      ${S.gyg ? `<div class="total" style="text-align:center">GetYourGuide booking · nothing to pay</div>
+      <p><b>Show this screen and your GetYourGuide booking at the Gakis desk to collect your bracelets.</b><br>` : `<div class="total" style="text-align:center">To pay: ${Object.entries(sums).map(([d,n])=>fmt(n,d)).join(' + ')}</div>
+      <p><b>Show this screen at the Gakis desk to pay.</b><br>`}Be there 10 minutes before departure. Take a screenshot!</p></div>
       <h2>What awaits you</h2>${HERO(IMG_TORTUE)}<p style="margin:-4px 0 10px"><b>One of the most beautiful lagoons in the world.</b> Îlot Maître is a preserved island 15 minutes from Nouméa.</p>
       <div class="card"><ul class="vivre">
         <li><span>🐢</span><b>Lagoon wildlife</b><br><span class="mut" style="position:static;font-size:14px">Snorkel among corals, fish and, with luck, sea turtles</span></li>
@@ -242,8 +246,9 @@ function renderCaisse() {
         ${!ens && r.statut==='attente' ? `<button class="sm ok" onclick="act('statut',{ids:['${r.id}'],value:'payé'})">Payé</button>` : ''}</span></div>`).join('')}
       ${due ? `<div class="total">Reste : ${due}${ens?' · '+g[0].mode:''}</div>` : ''}
       <div class="row" style="margin-top:8px">
-        ${ens && live.some(r=>r.statut==='attente') ? `<button class="ok" onclick="act('statut',{ids:${ids(live)},value:'payé'})">Tout payé</button>` : ''}
-        ${live.some(r=>r.statut==='attente') ? `<button class="sec" onclick="if(confirm('Réservation ${g[0].groupe} déjà réglée sur GetYourGuide ?'))act('gyg',{ids:${ids(live.filter(r=>r.statut==='attente'))}})">GYG déjà réglé</button>` : ''}
+        ${g[0].mode==='GYG' && live.some(r=>r.statut==='attente') ? `<button class="ok" onclick="act('statut',{ids:${ids(live)},value:'payé'})">✓ Présents · booking GYG vu</button>` : ''}
+        ${g[0].mode!=='GYG' && ens && live.some(r=>r.statut==='attente') ? `<button class="ok" onclick="act('statut',{ids:${ids(live)},value:'payé'})">Tout payé</button>` : ''}
+        ${g[0].mode!=='GYG' && live.some(r=>r.statut==='attente') ? `<button class="sec" onclick="if(confirm('Réservation ${g[0].groupe} déjà réglée sur GetYourGuide ?'))act('gyg',{ids:${ids(live.filter(r=>r.statut==='attente'))}})">GYG déjà réglé</button>` : ''}
         <select onchange="if(this.value)act('move',{ids:${ids(g)},value:this.value})"><option value="">Changer de bateau…</option>${C.deps.filter(x=>x.id!==g[0].depart).map(x=>`<option value="${x.id}">${x.heure} (${x.libres} libres)</option>`).join('')}</select>
         ${live.length ? `<button class="no" onclick="if(confirm('Annuler la réservation ${g[0].groupe} ?'))act('statut',{ids:${ids(live)},value:'annulé'})">Annuler</button>` : ''}</div></div>`;
   }).join('');
