@@ -177,13 +177,13 @@ function renderCaisse() {
       <div class="bar"><i style="width:${Math.min(100,d.pris/d.capacite*100)}%"></i></div>
       ${d.parti ? `<div class="row" style="margin-top:8px;align-items:center"><b style="color:var(--ok)">✓ Bateau parti à ${d.parti}</b><button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'parti',value:''})">Annuler</button></div>`
         : `<p style="margin:8px 0 0"><button style="width:100%" onclick="if(confirm('Le bateau de ${d.heure} est parti ?'))act('editDep',{id:'${d.id}',field:'parti',value:'1'})">⛵ Confirmer bateau parti</button></p>`}
-      <p class="mut" style="margin:6px 0">Retour ${d.retour} · ${d.payes} payés · ${d.bloquees} bloquées</p>
+      <p class="mut" style="margin:6px 0">Retour ${d.retour} · ${d.payes} payés · ${d.bloquees} place(s) réservée(s)</p>
       <div class="row"><select onchange="act('editDep',{id:'${d.id}',field:'heure',value:this.value})">${TIMES(d.heure)}</select>
         <select onchange="act('editDep',{id:'${d.id}',field:'couleur',value:this.value})"><option value="">Couleur…</option>${C.couleurs.map(c=>`<option ${c===d.couleur?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
       <div class="row" style="margin-top:8px"><select onchange="act('editDep',{id:'${d.id}',field:'skipper',value:this.value})">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===d.skipper?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div>
-      <div class="row" style="margin-top:8px;align-items:center"><span class="mut">Bloq.</span>
+      <div class="row" style="margin-top:8px;align-items:center"><span><b>${Number(d.bloquees)}</b> <span class="mut">résa(s)</span></span>
+        <button class="sm ok" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:${Number(d.bloquees)}+1})">+1 résa</button>
         <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:Math.max(0,${Number(d.bloquees)}-1)})">−1</button>
-        <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:${Number(d.bloquees)}+1})">+1</button>
         <button class="sm" onclick="exportDep('${d.id}')">Exporter</button>
         ${d.pris == d.bloquees ? `<button class="sm no" onclick="if(confirm('Supprimer le départ ${d.heure} ?'))act('delDep',{id:'${d.id}'})">✕</button>` : ''}</div>
       ${(() => { const l = C.resas.filter(r => r.depart === d.id && r.statut !== 'annulé'); return l.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)"><b>Passagers (${l.length})</b>${l.map((r, j) => `<div class="row" style="align-items:center;margin-top:4px;${j && l[j-1].groupe !== r.groupe ? 'border-top:1px solid var(--line);padding-top:4px' : ''}"><span>${esc(r.prenom)} ${esc(r.nom)} <span class="mut">${r.type==='enfant'?'enfant':r.type==='bebe'?'bébé':''}</span></span><span style="text-align:right">${fmt(r.montant,r.devise)} · ${r.mode} <span class="tag ${r.statut==='payé'?'p':'a'}">${r.statut}</span></span></div>`).join('')}</div>` : ''; })()}
@@ -225,6 +225,7 @@ function renderCaisse() {
       ${due ? `<div class="total">Reste : ${due}${ens?' · '+g[0].mode:''}</div>` : ''}
       <div class="row" style="margin-top:8px">
         ${ens && live.some(r=>r.statut==='attente') ? `<button class="ok" onclick="act('statut',{ids:${ids(live)},value:'payé'})">Tout payé</button>` : ''}
+        ${live.some(r=>r.statut==='attente') ? `<button class="sec" onclick="if(confirm('Réservation ${g[0].groupe} déjà réglée sur GetYourGuide ?'))act('gyg',{ids:${ids(live.filter(r=>r.statut==='attente'))}})">GYG déjà réglé</button>` : ''}
         <select onchange="if(this.value)act('move',{ids:${ids(g)},value:this.value})"><option value="">Changer de bateau…</option>${C.deps.filter(x=>x.id!==g[0].depart).map(x=>`<option value="${x.id}">${x.heure} (${x.libres} libres)</option>`).join('')}</select>
         ${live.length ? `<button class="no" onclick="if(confirm('Annuler la réservation ${g[0].groupe} ?'))act('statut',{ids:${ids(live)},value:'annulé'})">Annuler</button>` : ''}</div></div>`;
   }).join('');
@@ -257,7 +258,7 @@ function exportDep(id) {
     x.fillStyle = '#5b6b7c'; x.textAlign = 'right'; x.fillText(r.groupe === last ? '' : r.tel, W - 60, y); x.textAlign = 'left';
     last = r.groupe; y += 64;
   });
-  if (Number(d.bloquees)) { x.fillStyle = '#5b6b7c'; x.fillText('+ ' + d.bloquees + ' place(s) bloquée(s)', 60, y); }
+  if (Number(d.bloquees)) { x.fillStyle = '#5b6b7c'; x.fillText('+ ' + d.bloquees + ' place(s) réservée(s)', 60, y); }
   const url = cv.toDataURL('image/png'), name = 'gakis-' + d.heure.replace(':', 'h') + '.png';
   const ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:#000d;z-index:9;overflow:auto;padding:16px;text-align:center;color:#fff';
@@ -286,6 +287,9 @@ async function loadCompta(date) {
 }
 // Un encaissement = un groupe qui paie ensemble, ou une personne qui paie seule
 const ours = r => r.statut !== 'annulé' && r.mode !== 'Refacturé';
+// places réellement occupées sur un bateau : tous passagers (taxi partenaire compris) + places réservées
+const occ = (K, d) => K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length + (Number(d.bloquees) || 0);
+const nTaxi = (K, d) => K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé' && r.mode === 'Refacturé').length;
 function stats(K) {
   // nos passagers = hors taxi partenaire (Refacturé), qui ne compte que dans « À refacturer »
   const all = K.resas.filter(r => r.statut !== 'annulé'), live = all.filter(ours), n = t => live.filter(r => r.type === t).length;
@@ -295,7 +299,7 @@ function stats(K) {
     noms: g[0].mode === 'Refacturé' ? g[0].prenom + ' (taxi, ' + g.length + ' pers.)' : g.map(r => r.prenom + ' ' + r.nom).join(', '), a: g.filter(r=>r.type==='adulte').length, e: g.filter(r=>r.type==='enfant').length, b: g.filter(r=>r.type==='bebe').length,
     devise: g[0].devise, mode: g[0].mode, montant: g.reduce((s, r) => s + Number(r.montant), 0) }));
   const tot = (st, dev, mode) => tx.filter(t => t.statut === st && t.devise === dev && (!mode || t.mode === mode));
-  const cap = K.deps.reduce((s, d) => s + Number(d.capacite), 0), pax = live.length;
+  const cap = K.deps.reduce((s, d) => s + Number(d.capacite), 0), pax = live.length, occupe = K.deps.reduce((s, d) => s + occ(K, d), 0);
   // Chaque devise reste séparée ; seul le « total journée » convertit AUD/USD en CFP au taux des réglages
   const rate = K.taux || {AUD: 72, USD: 110}, cfp = (v, d) => d === 'XPF' ? v : Math.round(v * rate[d]);
   const caisse = [['Cash','XPF'],['Cash','AUD'],['Cash','USD'],['Carte','XPF']].map(([m,d]) => { const l = tot('payé', d, m), v = l.reduce((s,t)=>s+t.montant,0); return { m, d, nb: l.length, v, cfp: cfp(v, d) }; });
@@ -304,7 +308,7 @@ function stats(K) {
   const refact = Object.values(tx.filter(t => t.mode === 'Refacturé').reduce((o, t) => { const p = t.noms.split(' (taxi')[0], x = o[p] = o[p] || { p, nb: 0, v: 0 }; x.nb += t.a; x.v += t.montant; return o; }, {}));
   // passagers transportés par skipper (ex. Gildas/Atao, refacturé ensuite)
   const parSkipper = Object.values(K.deps.reduce((o, d) => { const k = d.skipper || '—', x = o[k] = o[k] || { k, bateaux: 0, pax: 0 }; x.bateaux++; x.pax += live.filter(r => r.depart === d.id).length; return o; }, {}));
-  return { parSkipper, refact, adultes: n('adulte'), enfants: n('enfant'), bebes: n('bebe'), pax, cap, taux: cap ? Math.round(pax / cap * 100) : 0, tx, rate,
+  return { parSkipper, refact, adultes: n('adulte'), enfants: n('enfant'), bebes: n('bebe'), pax, cap, occupe, taux: cap ? Math.round(occupe / cap * 100) : 0, tx, rate,
     caisse, modes, totalCfp, carteCfp, cashCfp: totalCfp - carteCfp,
     attente: ['XPF','AUD','USD'].map(d => { const l = tot('attente', d); return { d, nb: l.length, v: l.reduce((s,t)=>s+t.montant,0) }; }) };
 }
@@ -325,8 +329,8 @@ function comptaHtml(K, s) {
 ${s.refact.length ? `<h2>À refacturer (taxi partenaires)</h2><div class="card"><table>${s.refact.map(x => `<tr><td>${esc(x.p)}</td><td class="n">${x.nb} pers.</td><td class="n"><b>${fmt(x.v, 'XPF')}</b></td></tr>`).join('')}</table></div>` : ''}
 <h2>Passagers par skipper</h2><div class="card"><table><tr><th>Skipper</th><th class="n">Bateaux</th><th class="n">Personnes</th></tr>${s.parSkipper.map(x => `<tr><td>${esc(x.k)}</td><td class="n">${x.bateaux}</td><td class="n"><b>${x.pax}</b></td></tr>`).join('')}</table></div>
     <h2>Bateaux · taux d'occupation ${s.taux} %</h2><div class="card"><table><tr><th>Départ</th><th>Skipper</th><th>Bracelet</th><th class="n">Passagers</th><th class="n">Taux</th></tr>
-      ${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && ours(r)).length; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
-      <tr><td colspan="3"><b>Total</b></td><td class="n"><b>${s.pax}/${s.cap}</b></td><td class="n"><b>${s.taux} %</b></td></tr></table></div>
+      ${K.deps.map(d => { const p = occ(K, d), t = nTaxi(K, d), b = Number(d.bloquees) || 0; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}${t || b ? `<br><span class="mut" style="font-size:12px">${[t && 'dont ' + t + ' taxi', b && b + ' résa'].filter(Boolean).join(', ')}</span>` : ''}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
+      <tr><td colspan="3"><b>Total</b></td><td class="n"><b>${s.occupe}/${s.cap}</b></td><td class="n"><b>${s.taux} %</b></td></tr></table></div>
     <h2>Détail des encaissements</h2><div class="card"><table><tr><th>Départ</th><th>Code</th><th>Noms</th><th class="n">Montant</th><th>Statut</th></tr>
       ${s.tx.sort((a,b)=>String(a.dep.heure).localeCompare(b.dep.heure)).map(t => `<tr><td>${t.dep.heure||''}</td><td>${t.groupe}</td><td>${esc(t.noms)} <span class="mut">(${lbl(t)})</span></td><td class="n">${fmt(t.montant,t.devise)} ${t.mode}</td><td>${t.statut}</td></tr>`).join('')}</table></div>`;
 }
@@ -354,7 +358,7 @@ function pdfHtml(K, s, img) {
   const p1 = `<div style="border-left:8px solid #0b3d6b;padding:4px 0 4px 14px"><div style="font-size:12px;color:#5b6b7c">GAKIS · Îlot Maître taxi boat</div><div style="font-size:22px;font-weight:bold;color:#0b3d6b;margin-top:2px">Clôture du ${jour}</div></div>
     <table style="width:100%;border-collapse:separate;border-spacing:8px;margin:10px -8px"><tr>
       ${tile(s.pax, 'Passagers', s.adultes + ' adultes · ' + s.enfants + ' enfants · ' + s.bebes + ' bébés', SER.a)}${tile(fmt(sum('XPF'), 'XPF'), 'Encaissé en XPF', nb('XPF') + ' encaissement(s)', SER.b)}
-      ${tile(fmt(sum('AUD'), 'AUD') + ' · ' + fmt(sum('USD'), 'USD'), 'Encaissé en dollars', (nb('AUD') + nb('USD')) + ' encaissement(s) · cash', SER.b)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', SER.e)}</tr></table>
+      ${tile(fmt(sum('AUD'), 'AUD') + ' · ' + fmt(sum('USD'), 'USD'), 'Encaissé en dollars', (nb('AUD') + nb('USD')) + ' encaissement(s) · cash', SER.b)}${tile(s.taux + ' %', 'Remplissage', s.occupe + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', SER.e)}</tr></table>
     <h2>Passagers</h2>${bar([[s.adultes, SER.a, s.adultes], [s.enfants, SER.e, s.enfants], [s.bebes, SER.b, s.bebes]], 26)}
     <p style="margin:6px 0 0">${lg(SER.a, 'Adultes ' + s.adultes)}${lg(SER.e, 'Enfants 2–9 ans ' + s.enfants)}${lg(SER.b, 'Bébés ' + s.bebes)}</p>
     <h2>Encaissements</h2><table style="width:100%">${enc('XPF')}${enc('AUD')}${enc('USD')}</table><p style="margin:4px 0 0">${lg(SER.a, 'Cash')}${lg(SER.e, 'Carte')}</p>
@@ -363,7 +367,7 @@ function pdfHtml(K, s, img) {
     <table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #c9dcf3;border-left:6px solid #2a78d6;padding:10px 14px"><b>Passagers par skipper :</b> ${s.parSkipper.map(x => esc(x.k) + ' ' + x.pax + ' pers. (' + x.bateaux + ' bateau' + (x.bateaux > 1 ? 'x' : '') + ')').join(' · ')}</td></tr></table>
     ${s.refact.length ? `<table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #c9dcf3;border-left:6px solid #0b3d6b;padding:10px 14px"><b>À refacturer :</b> ${s.refact.map(x => esc(x.p) + ' ' + x.nb + ' pers. = ' + fmt(x.v, 'XPF')).join(' · ')}</td></tr></table>` : ''}
     ${reste.length ? `<table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #f0d9a8;border-left:6px solid #c98500;padding:10px 14px"><b>⚠ Reste à encaisser :</b> ${reste.map(x => fmt(x.v, x.d) + ' (' + x.nb + ')').join(' + ')}</td></tr></table>` : ''}
-    <h2>Remplissage des bateaux</h2><table style="width:100%">${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && ours(r)).length, c = Number(d.capacite);
+    <h2>Remplissage des bateaux</h2><table style="width:100%">${K.deps.map(d => { const p = occ(K, d), c = Number(d.capacite);
       return `<tr><td style="width:50px;font-weight:bold;padding:4px 0">${d.heure}</td><td style="width:14px"><div style="width:0;height:0;border:6px solid ${col(d.couleur)};outline:1px solid #0003"></div></td>
         <td style="width:120px;font-size:11px;color:#5b6b7c">${esc(d.skipper || '—')}</td><td>${bar([[p, '#2a78d6', ''], [Math.max(0, c - p), '#dfe7ef', '']], 14)}</td><td style="width:70px;text-align:right"><b>${p}/${c}</b></td></tr>`; }).join('')}</table>`;
   const lbl = t => [t.a && t.a + ' A', t.e && t.e + ' E', t.b && t.b + ' B'].filter(Boolean).join(' ');
@@ -407,7 +411,7 @@ function bilanPage(K, s) {
       <div style="display:flex;gap:3px;height:14px;margin-top:4px">${c ? `<div style="width:${c / t * 100}%;background:${GK.lagon};border-radius:4px"></div>` : ''}${k ? `<div style="width:${k / t * 100}%;background:${GK.corail};border-radius:4px"></div>` : ''}${c + k ? '' : '<div style="flex:1;background:#eef3f3;border-radius:4px"></div>'}</div>
       <div style="font-size:11px;color:${GK.mut};margin-top:3px">${nb(d)} encaissement(s)${c ? ' · cash ' + fmt(c, d) : ''}${k ? ' · carte ' + fmt(k, d) : ''}</div></div>`; };
   const reste = s.attente.filter(x => x.v);
-  const cols = K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && ours(r)).length, c = Number(d.capacite) || 12, pc = Math.min(100, p / c * 100);
+  const cols = K.deps.map(d => { const p = occ(K, d), c = Number(d.capacite) || 12, pc = Math.min(100, p / c * 100);
     return `<div style="flex:1;min-width:0;text-align:center">
       <div style="height:190px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center"><div style="font-size:13px;font-weight:700;margin-bottom:4px">${p}/${c}</div><div style="width:62%;max-width:48px;height:160px;background:#e3f4f3;border-radius:6px 6px 2px 2px;display:flex;align-items:flex-end"><div style="width:100%;height:${Math.max(pc, 2) * 1.6}px;background:${pc >= 100 ? GK.deep : GK.lagon};border-radius:6px 6px 2px 2px"></div></div></div>
       <div style="height:2px;background:#cfdcdb"></div><div style="${T};font-size:15px;margin-top:6px">${d.heure}</div>
@@ -423,7 +427,7 @@ function bilanPage(K, s) {
         <div style="flex:2;background:${GK.deep};color:#fff;border-radius:16px;padding:16px 18px"><div style="font-size:12px;font-weight:600;opacity:.8">Chiffre du jour (équivalent CFP)</div>
           <div style="${T};font-size:38px;line-height:1.1;margin-top:4px">${fmt(s.totalCfp, 'XPF')}</div>
           <div style="font-size:12px;opacity:.85;margin-top:2px">Carte ${fmt(s.carteCfp, 'XPF')} · Cash ≈ ${fmt(s.cashCfp, 'XPF')}</div></div>
-        ${tile(s.pax, 'Passagers', s.adultes + ' A · ' + s.enfants + ' E · ' + s.bebes + ' B', GK.aqua, GK.deep)}${tile(s.taux + ' %', 'Remplissage', s.pax + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', GK.lagon, '#fff')}</div>
+        ${tile(s.pax, 'Passagers', s.adultes + ' A · ' + s.enfants + ' E · ' + s.bebes + ' B', GK.aqua, GK.deep)}${tile(s.taux + ' %', 'Remplissage', s.occupe + ' / ' + s.cap + ' places · ' + K.deps.length + ' bateaux', GK.lagon, '#fff')}</div>
       <div style="${T};font-size:20px;margin-top:22px">Encaissements par mode</div>
       <div style="display:flex;gap:10px;margin-top:8px">${s.modes.map(m => `<div style="flex:1;border:1px solid #dce9e8;border-top:6px solid ${m.c};border-radius:12px;padding:12px 12px 10px">
           <div style="font-size:12px;font-weight:700">${m.l}</div><div style="${T};font-size:22px;margin-top:2px">${fmt(m.v, m.d)}</div>
@@ -471,7 +475,7 @@ async function loadSkipper() {
   if (!show.length) h += '<div class="card">Aucun départ prévu.</div>';
   h += show.map((d,i) => `<div class="card skip" style="border-left:14px solid ${col(d.couleur)}">
      <div class="row" style="align-items:flex-end"><div><div class="mut">${d.heure < s.now ? 'Parti' : i === last.length ? 'PROCHAIN BATEAU' : 'Ensuite'}</div><div class="${i===last.length?'now':'time'}">${d.heure}</div></div>
-     <div style="text-align:right"><div class="seats">${d.pris}<span class="mut" style="font-size:20px">/${d.capacite}</span></div><div class="mut">${d.payes} payés · ${d.bloquees} bloquées</div></div></div>
+     <div style="text-align:right"><div class="seats">${d.pris}<span class="mut" style="font-size:20px">/${d.capacite}</span></div><div class="mut">${d.payes} payés · ${d.bloquees} réservée(s)</div></div></div>
      <div class="bar"><i style="width:${Math.min(100,d.pris/d.capacite*100)}%"></i></div>
      ${(d.taxi||[]).map(t => `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1d6;color:#7a4d00;font-size:20px;font-weight:800">🚕 Taxi ${esc(t.p)} · ${t.nb} pers. <span style="font-size:14px;font-weight:600">(leurs clients)</span></div>`).join('')}
      <p style="margin:8px 0 0">${d.couleur ? `Bracelet <span class="chip" style="background:${col(d.couleur)}"></span><b>${esc(d.couleur)}</b> · ` : (d.taxi||[]).length ? 'Pas de bracelet · ' : ''}Retour <b>${d.retour}</b> · Skipper <b>${esc(d.skipper||'—')}</b></p></div>`).join('');
