@@ -242,6 +242,9 @@ function NEXT() {
 }
 
 /* ================= COMPTA ================= */
+// fond de caisse laissé chaque jour : s'ajoute aux espèces encaissées dans « à avoir en caisse »
+const FOND = d => Number((K && K.fond || {})[d]) || 0;
+const FONDTXT = () => ['XPF','AUD','USD'].filter(d => FOND(d)).map(d => fmt(FOND(d), d)).join(' + ');
 const TABS = () => `<div class="seg" style="margin-bottom:12px"><button class="${VIEW==='caisse'?'on':''}" onclick="VIEW='caisse';renderCaisse()">Caisse</button><button class="${VIEW==='compta'?'on':''}" onclick="VIEW='compta';loadCompta()">Compta</button></div>`;
 async function loadCompta(date) {
   KDATE = date || KDATE || new Date().toLocaleDateString('en-CA', {timeZone:'Pacific/Noumea'});
@@ -276,7 +279,7 @@ function comptaHtml(K, s) {
       ${s.modes.map(c => `<tr><td>${c.l}</td><td class="n">${c.nb}</td><td class="n"><b>${fmt(c.v, c.d)}</b></td><td class="n">${fmt(c.cfp, 'XPF')}</td></tr>`).join('')}
       <tr><td colspan="3"><b>Total journée</b> <span class="mut">(carte ${fmt(s.carteCfp,'XPF')} · cash ≈ ${fmt(s.cashCfp,'XPF')})</span></td><td class="n"><b>${fmt(s.totalCfp, 'XPF')}</b></td></tr></table>
       <p class="mut" style="font-size:13px">AUD et USD convertis au taux des réglages (1 A$ = ${s.rate.AUD} F · 1 US$ = ${s.rate.USD} F), pour le total seulement.</p>
-      <p><b>Espèces en caisse</b> (à compter séparément) :<br>${fmt(s.caisse[0].v,'XPF')} · ${fmt(s.caisse[1].v,'AUD')} · ${fmt(s.caisse[2].v,'USD')}</p></div>
+      <p><b>Espèces à avoir en caisse</b> (à compter séparément) :<br>${fmt(s.caisse[0].v + FOND('XPF'),'XPF')} · ${fmt(s.caisse[1].v + FOND('AUD'),'AUD')} · ${fmt(s.caisse[2].v + FOND('USD'),'USD')}${FONDTXT() ? `<br><span class="mut">dont fond de caisse : ${FONDTXT()}</span>` : ''}</p></div>
     <h2>Reste à encaisser</h2><div class="card"><table>${s.attente.map(a => `<tr><td>${a.d}</td><td class="n">${a.nb} encaissement(s)</td><td class="n"><b>${fmt(a.v, a.d)}</b></td></tr>`).join('')}</table></div>
     <h2>Bateaux · taux d'occupation ${s.taux} %</h2><div class="card"><table><tr><th>Départ</th><th>Skipper</th><th>Bracelet</th><th class="n">Passagers</th><th class="n">Taux</th></tr>
       ${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
@@ -313,7 +316,7 @@ function pdfHtml(K, s, img) {
     <p style="margin:6px 0 0">${lg(SER.a, 'Adultes ' + s.adultes)}${lg(SER.e, 'Enfants 2–9 ans ' + s.enfants)}${lg(SER.b, 'Bébés ' + s.bebes)}</p>
     <h2>Encaissements</h2><table style="width:100%">${enc('XPF')}${enc('AUD')}${enc('USD')}</table><p style="margin:4px 0 0">${lg(SER.a, 'Cash')}${lg(SER.e, 'Carte')}</p>
     <table style="width:100%;margin-top:12px;border-collapse:separate;border-spacing:0"><tr><td style="border:1px solid #c9dcf3;border-left:6px solid #2a78d6;padding:10px 14px">
-      <b>Espèces à avoir en caisse :</b> ${fmt(sum('XPF', 'Cash'), 'XPF')} + ${fmt(sum('AUD', 'Cash'), 'AUD')} + ${fmt(sum('USD', 'Cash'), 'USD')}</td></tr></table>
+      <b>Espèces à avoir en caisse :</b> ${fmt(sum('XPF', 'Cash') + FOND('XPF'), 'XPF')} + ${fmt(sum('AUD', 'Cash') + FOND('AUD'), 'AUD')} + ${fmt(sum('USD', 'Cash') + FOND('USD'), 'USD')}${FONDTXT() ? `<br>dont fond de caisse : ${FONDTXT()}` : ''}</td></tr></table>
     ${reste.length ? `<table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #f0d9a8;border-left:6px solid #c98500;padding:10px 14px"><b>⚠ Reste à encaisser :</b> ${reste.map(x => fmt(x.v, x.d) + ' (' + x.nb + ')').join(' + ')}</td></tr></table>` : ''}
     <h2>Remplissage des bateaux</h2><table style="width:100%">${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length, c = Number(d.capacite);
       return `<tr><td style="width:50px;font-weight:bold;padding:4px 0">${d.heure}</td><td style="width:14px"><div style="width:0;height:0;border:6px solid ${col(d.couleur)};outline:1px solid #0003"></div></td>
@@ -386,7 +389,8 @@ function bilanPage(K, s) {
         <div style="flex:1"><div style="${T};font-size:20px">Passagers</div><div style="display:flex;align-items:center;gap:18px;margin-top:6px">${donutBox}<div style="flex:1;font-size:14px">${legend}</div></div></div>
         <div style="flex:1;display:flex;flex-direction:column;gap:10px;padding-top:6px">
           <div style="background:${GK.deep};color:#fff;border-radius:16px;padding:14px 18px"><div style="font-size:12px;opacity:.8">Espèces à avoir en caisse (par devise)</div>
-            ${[['XPF','CFP'],['AUD','AUD'],['USD','USD']].map(([d, l]) => `<div style="display:flex;justify-content:space-between;margin-top:4px"><span>${l}</span><span style="${T};font-size:19px">${fmt(sum(d, 'Cash'), d)}</span></div>`).join('')}</div>
+            ${[['XPF','CFP'],['AUD','AUD'],['USD','USD']].map(([d, l]) => `<div style="display:flex;justify-content:space-between;margin-top:4px"><span>${l}</span><span style="${T};font-size:19px">${fmt(sum(d, 'Cash') + FOND(d), d)}</span></div>`).join('')}
+            ${FONDTXT() ? `<div style="font-size:11px;opacity:.75;margin-top:6px;border-top:1px solid #fff3;padding-top:6px">dont fond de caisse : ${FONDTXT()}</div>` : ''}</div>
           ${reste.length ? `<div style="background:#fde7dd;color:#8a2f0c;border-radius:16px;padding:14px 18px"><div style="font-size:12px">⚠ Reste à encaisser</div><div style="${T};font-size:19px;margin-top:4px">${reste.map(x => fmt(x.v, x.d)).join(' · ')}</div></div>` : ''}</div></div>
       <div style="${T};font-size:20px;margin-top:24px">Remplissage des bateaux</div>
       <div style="display:flex;gap:6px;margin-top:10px">${cols || '<p>Aucun départ.</p>'}</div>
