@@ -233,7 +233,9 @@ function renderCaisse() {
 
 // Image du départ pour le groupe Facebook (texte seul : un logo externe bloquerait l'export du canvas)
 function exportDep(id) {
-  const d = C.deps.find(x => x.id === id), list = C.resas.filter(r => r.depart === id && r.statut !== 'annulé');
+  const d = C.deps.find(x => x.id === id), all = C.resas.filter(r => r.depart === id && r.statut !== 'annulé');
+  const list = all.filter(r => r.mode !== 'Refacturé'), taxi = all.filter(r => r.mode === 'Refacturé').reduce((o, r) => (o[r.prenom] = (o[r.prenom] || 0) + 1, o), {});
+  Object.entries(taxi).forEach(([p, nb]) => list.push({ prenom: '🚕 Taxi ' + p, nom: '· ' + nb + ' pers.', type: 'adulte', tel: '', groupe: 'taxi-' + p }));
   const W = 1080, H = 640 + list.length * 64 + (Number(d.bloquees) ? 64 : 0), cv = document.createElement('canvas');
   cv.width = W; cv.height = H; const x = cv.getContext('2d'), F = 'px -apple-system,system-ui,Roboto,sans-serif';
   x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.fillStyle = col(d.couleur); x.fillRect(0, 0, W, 28); x.fillRect(0, H - 28, W, 28);
@@ -241,7 +243,7 @@ function exportDep(id) {
   x.font = '800 150' + F; x.fillText(d.heure, 60, 260);
   x.font = '600 40' + F; x.textAlign = 'right'; x.fillText(d.pris + ' / ' + d.capacite + ' passagers', W - 60, 255); x.textAlign = 'left';
   // répartition des passagers, bien visible pour le groupe
-  const nT = t => list.filter(r => r.type === t).length, pl = (n, a, b) => n + ' ' + (n > 1 ? b : a);
+  const nT = t => all.filter(r => r.type === t).length, pl = (n, a, b) => n + ' ' + (n > 1 ? b : a);
   const rep = [pl(nT('adulte'), 'adulte', 'adultes'), pl(nT('enfant'), 'enfant', 'enfants'), pl(nT('bebe'), 'bébé', 'bébés')].join('  ·  ');
   x.fillStyle = '#e8f1fc'; x.fillRect(60, 300, W - 120, 76); x.fillStyle = '#0b5fa5'; x.fillRect(60, 300, 8, 76);
   x.fillStyle = '#0d2238'; x.font = '700 42' + F; x.fillText(rep, 92, 353);
@@ -458,6 +460,7 @@ async function loadSkipper() {
      <div class="row" style="align-items:flex-end"><div><div class="mut">${d.heure < s.now ? 'Parti' : i === last.length ? 'PROCHAIN BATEAU' : 'Ensuite'}</div><div class="${i===last.length?'now':'time'}">${d.heure}</div></div>
      <div style="text-align:right"><div class="seats">${d.pris}<span class="mut" style="font-size:20px">/${d.capacite}</span></div><div class="mut">${d.payes} payés · ${d.bloquees} bloquées</div></div></div>
      <div class="bar"><i style="width:${Math.min(100,d.pris/d.capacite*100)}%"></i></div>
+     ${(d.taxi||[]).map(t => `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1d6;color:#7a4d00;font-size:20px;font-weight:800">🚕 Taxi ${esc(t.p)} · ${t.nb} pers. <span style="font-size:14px;font-weight:600">(leurs clients)</span></div>`).join('')}
      <p style="margin:8px 0 0">Bracelet <span class="chip" style="background:${col(d.couleur)}"></span><b>${esc(d.couleur||'—')}</b> · Retour <b>${d.retour}</b> · Skipper <b>${esc(d.skipper||'—')}</b></p></div>`).join('');
   $('#app').innerHTML = h;
 }
