@@ -188,7 +188,7 @@ function renderCaisse() {
       <details ${OPEN.has('p-'+d.id)?'open':''} ontoggle="this.open?OPEN.add('p-${d.id}'):OPEN.delete('p-${d.id}')" style="margin-top:10px"><summary style="list-style:none;cursor:pointer;text-align:center;padding:11px;border-radius:10px;background:var(--ok);color:#fff;font-weight:700">+ Ajouter des passagers (feuille papier)</summary>
         <p class="mut" style="margin:8px 0 0">Un groupe qui a déjà payé</p>
         <textarea id="pn-${d.id}" oninput="DRAFT['${d.id}']=this.value" rows="3" style="width:100%;margin-top:6px;font:inherit" placeholder="Un passager par ligne : Prénom Nom&#10;ajoute « enfant » ou « bébé » en fin de ligne">${esc(DRAFT[d.id]||'')}</textarea>
-        <div class="row" style="margin-top:6px"><select id="pm-${d.id}"><option>Carte</option><option>Cash</option><option value="GYG">GYG (prépayé)</option></select>
+        <div class="row" style="margin-top:6px"><select id="pm-${d.id}"><option>Carte</option><option>Cash</option><option value="Prépayé">Résa déjà payée</option><option value="GYG">GYG (prépayé)</option></select>
           <select id="pd-${d.id}"><option>XPF</option><option>AUD</option><option>USD</option></select>
           <input id="px-${d.id}" type="number" placeholder="Prix adulte"></div>
         <p style="margin:6px 0 0"><button class="ok" style="width:100%" onclick="addManuel('${d.id}')">Enregistrer (payé)</button></p></details></details>`).join('') + '</div>';
