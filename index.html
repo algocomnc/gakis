@@ -173,7 +173,7 @@ function renderCaisse() {
      <b style="margin-left:10px;color:${FLASH.startsWith('⚠')?'var(--warn)':'var(--ok)'}">${esc(FLASH)}</b></p></div>`;
   const taux = d => Number((C.reglages.find(r => r[0] === 'Taux XPF pour 1 ' + d) || [])[1]) || 1;
   if (!C.ferme) h += `<p><button class="no" style="width:100%" onclick="if(confirm('Clôturer la journée ? Les touristes ne pourront plus réserver.'))fermer()">Clôturer la journée</button></p>`;
-  h += `<details class="card"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}${/(AUD|USD) \(en XPF\)/.test(k) ? ' → <b>' + fmt(Math.ceil(Number(v) / taux(k.match(/AUD|USD/)[0])), k.match(/AUD|USD/)[0]) + '</b>' : ''}</label>
+  h += `<details class="card" ${OPEN.has('reglages')?'open':''} ontoggle="this.open?OPEN.add('reglages'):OPEN.delete('reglages')"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}${/(AUD|USD) \(en XPF\)/.test(k) ? ' → <b>' + fmt(Math.ceil(Number(v) / taux(k.match(/AUD|USD/)[0])), k.match(/AUD|USD/)[0]) + '</b>' : ''}</label>
      <input value="${esc(v)}" onchange="act('setting',{key:${esc(JSON.stringify(k))},value:this.value})">`).join('')}
      <p class="mut">Tous les prix en CFP. Prix AUD/USD = prix « (en XPF) » ÷ taux, arrondi au dollar au-dessus. Les résas déjà faites gardent leur prix.</p></details>`;
   const groups = {};
@@ -404,7 +404,7 @@ async function cloture(btn) {
   try { img = await bilanImage(K, s); } catch (e) { img = null; } // sans réseau : version simple
   const html = pdfHtml(K, s, img);
   try {
-    const b64 = await call('pdf', PIN, html), name = 'gakis-cloture-' + K.date + '.pdf';
+    const name = 'gakis-cloture-' + K.date + '.pdf', b64 = await call('pdf', PIN, html, name);
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
     const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
     btn.insertAdjacentHTML('afterend', `<a style="display:block;margin-top:6px" href="data:application/pdf;base64,${b64}" download="${name}">Si rien ne s'est passé : télécharger ${name}</a>`);
@@ -446,7 +446,7 @@ function renderQr() { // affiche A4 à imprimer (Cmd+P)
 
 /* ================= ROUTAGE ================= */
 const poll = (f, ms) => { f(); setInterval(f, ms); };
-if (PAGE === 'caisse') { PIN ? loadCaisse() : pinScreen(); setInterval(() => C && call('getCaisse', PIN).then(c => { C = c; renderCaisse(); }).catch(()=>{}), 6000); }
+if (PAGE === 'caisse') { PIN ? loadCaisse() : pinScreen(); setInterval(() => C && call('getCaisse', PIN).then(c => { C = c; if (!document.activeElement.matches('input, select, textarea')) renderCaisse(); }).catch(()=>{}), 6000); }
 if (PAGE === 'skipper') poll(() => loadSkipper().catch(e => $('#app').textContent = 'Erreur : ' + e), 8000);
 if (PAGE === 'qr') renderQr();
 if (PAGE === 'resa') loadPub().then(() => renderResa()).then(() => setInterval(() => !busy && $('.big') && loadPub().then(() => { if (!document.activeElement.matches('input')) renderResa(); }), 20000)).catch(e => $('#app').textContent = e);
