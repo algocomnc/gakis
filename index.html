@@ -161,7 +161,7 @@ function corriger(id) {
   document.body.appendChild(ov);
   const close = () => ov.remove();
   ov.querySelector('#e-x').onclick = close;
-  ov.querySelector('#e-ok').onclick = () => { const f = {}; ['prenom','nom','type','mode','devise','montant'].forEach(k => f[k] = ov.querySelector('#e-' + k).value); f.statut = 'payé'; close(); act('edit', { id, fields: f }); };
+  ov.querySelector('#e-ok').onclick = () => { const f = {}; ['prenom','nom','type','mode','devise','montant'].forEach(k => f[k] = ov.querySelector('#e-' + k).value); close(); act('edit', { id, fields: f }); };
   ov.querySelector('#e-del').onclick = () => { if (confirm('Annuler ' + r.prenom + ' ' + r.nom + ' ?')) { close(); act('statut', { ids: [id], value: 'annulé' }); } };
 }
 // « Prénom Nom [enfant|bébé] » par ligne → passagers
