@@ -285,10 +285,12 @@ async function loadCompta(date) {
   try { K = await call('getCompta', PIN, KDATE); renderCompta(); } catch (e) { $('#app').innerHTML = LOGO + TABS() + `<div class="err">${esc(e)}</div>`; }
 }
 // Un encaissement = un groupe qui paie ensemble, ou une personne qui paie seule
+const ours = r => r.statut !== 'annulé' && r.mode !== 'Refacturé';
 function stats(K) {
-  const live = K.resas.filter(r => r.statut !== 'annulé'), n = t => live.filter(r => r.type === t).length;
+  // nos passagers = hors taxi partenaire (Refacturé), qui ne compte que dans « À refacturer »
+  const all = K.resas.filter(r => r.statut !== 'annulé'), live = all.filter(ours), n = t => live.filter(r => r.type === t).length;
   const enc = {};
-  live.forEach(r => { const k = (r.ensemble === 'oui' ? r.groupe : r.id) + '|' + r.statut; (enc[k] = enc[k] || []).push(r); });
+  all.forEach(r => { const k = (r.ensemble === 'oui' ? r.groupe : r.id) + '|' + r.statut; (enc[k] = enc[k] || []).push(r); });
   const tx = Object.values(enc).map(g => ({ groupe: g[0].groupe, dep: K.deps.find(d => d.id === g[0].depart) || {}, statut: g[0].statut,
     noms: g[0].mode === 'Refacturé' ? g[0].prenom + ' (taxi, ' + g.length + ' pers.)' : g.map(r => r.prenom + ' ' + r.nom).join(', '), a: g.filter(r=>r.type==='adulte').length, e: g.filter(r=>r.type==='enfant').length, b: g.filter(r=>r.type==='bebe').length,
     devise: g[0].devise, mode: g[0].mode, montant: g.reduce((s, r) => s + Number(r.montant), 0) }));
@@ -320,7 +322,7 @@ function comptaHtml(K, s) {
 ${s.refact.length ? `<h2>À refacturer (taxi partenaires)</h2><div class="card"><table>${s.refact.map(x => `<tr><td>${esc(x.p)}</td><td class="n">${x.nb} pers.</td><td class="n"><b>${fmt(x.v, 'XPF')}</b></td></tr>`).join('')}</table></div>` : ''}
 <h2>Passagers par skipper</h2><div class="card"><table><tr><th>Skipper</th><th class="n">Bateaux</th><th class="n">Personnes</th></tr>${s.parSkipper.map(x => `<tr><td>${esc(x.k)}</td><td class="n">${x.bateaux}</td><td class="n"><b>${x.pax}</b></td></tr>`).join('')}</table></div>
     <h2>Bateaux · taux d'occupation ${s.taux} %</h2><div class="card"><table><tr><th>Départ</th><th>Skipper</th><th>Bracelet</th><th class="n">Passagers</th><th class="n">Taux</th></tr>
-      ${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
+      ${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && ours(r)).length; return `<tr><td>${d.heure}</td><td>${esc(d.skipper)}</td><td>${esc(d.couleur)}</td><td class="n">${p}/${d.capacite}</td><td class="n">${Math.round(p / d.capacite * 100)} %</td></tr>`; }).join('')}
       <tr><td colspan="3"><b>Total</b></td><td class="n"><b>${s.pax}/${s.cap}</b></td><td class="n"><b>${s.taux} %</b></td></tr></table></div>
     <h2>Détail des encaissements</h2><div class="card"><table><tr><th>Départ</th><th>Code</th><th>Noms</th><th class="n">Montant</th><th>Statut</th></tr>
       ${s.tx.sort((a,b)=>String(a.dep.heure).localeCompare(b.dep.heure)).map(t => `<tr><td>${t.dep.heure||''}</td><td>${t.groupe}</td><td>${esc(t.noms)} <span class="mut">(${lbl(t)})</span></td><td class="n">${fmt(t.montant,t.devise)} ${t.mode}</td><td>${t.statut}</td></tr>`).join('')}</table></div>`;
@@ -358,7 +360,7 @@ function pdfHtml(K, s, img) {
     <table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #c9dcf3;border-left:6px solid #2a78d6;padding:10px 14px"><b>Passagers par skipper :</b> ${s.parSkipper.map(x => esc(x.k) + ' ' + x.pax + ' pers. (' + x.bateaux + ' bateau' + (x.bateaux > 1 ? 'x' : '') + ')').join(' · ')}</td></tr></table>
     ${s.refact.length ? `<table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #c9dcf3;border-left:6px solid #0b3d6b;padding:10px 14px"><b>À refacturer :</b> ${s.refact.map(x => esc(x.p) + ' ' + x.nb + ' pers. = ' + fmt(x.v, 'XPF')).join(' · ')}</td></tr></table>` : ''}
     ${reste.length ? `<table style="width:100%;margin-top:8px"><tr><td style="border:1px solid #f0d9a8;border-left:6px solid #c98500;padding:10px 14px"><b>⚠ Reste à encaisser :</b> ${reste.map(x => fmt(x.v, x.d) + ' (' + x.nb + ')').join(' + ')}</td></tr></table>` : ''}
-    <h2>Remplissage des bateaux</h2><table style="width:100%">${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length, c = Number(d.capacite);
+    <h2>Remplissage des bateaux</h2><table style="width:100%">${K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && ours(r)).length, c = Number(d.capacite);
       return `<tr><td style="width:50px;font-weight:bold;padding:4px 0">${d.heure}</td><td style="width:14px"><div style="width:0;height:0;border:6px solid ${col(d.couleur)};outline:1px solid #0003"></div></td>
         <td style="width:120px;font-size:11px;color:#5b6b7c">${esc(d.skipper || '—')}</td><td>${bar([[p, '#2a78d6', ''], [Math.max(0, c - p), '#dfe7ef', '']], 14)}</td><td style="width:70px;text-align:right"><b>${p}/${c}</b></td></tr>`; }).join('')}</table>`;
   const lbl = t => [t.a && t.a + ' A', t.e && t.e + ' E', t.b && t.b + ' B'].filter(Boolean).join(' ');
@@ -402,7 +404,7 @@ function bilanPage(K, s) {
       <div style="display:flex;gap:3px;height:14px;margin-top:4px">${c ? `<div style="width:${c / t * 100}%;background:${GK.lagon};border-radius:4px"></div>` : ''}${k ? `<div style="width:${k / t * 100}%;background:${GK.corail};border-radius:4px"></div>` : ''}${c + k ? '' : '<div style="flex:1;background:#eef3f3;border-radius:4px"></div>'}</div>
       <div style="font-size:11px;color:${GK.mut};margin-top:3px">${nb(d)} encaissement(s)${c ? ' · cash ' + fmt(c, d) : ''}${k ? ' · carte ' + fmt(k, d) : ''}</div></div>`; };
   const reste = s.attente.filter(x => x.v);
-  const cols = K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && r.statut !== 'annulé').length, c = Number(d.capacite) || 12, pc = Math.min(100, p / c * 100);
+  const cols = K.deps.map(d => { const p = K.resas.filter(r => r.depart === d.id && ours(r)).length, c = Number(d.capacite) || 12, pc = Math.min(100, p / c * 100);
     return `<div style="flex:1;min-width:0;text-align:center">
       <div style="height:190px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center"><div style="font-size:13px;font-weight:700;margin-bottom:4px">${p}/${c}</div><div style="width:62%;max-width:48px;height:160px;background:#e3f4f3;border-radius:6px 6px 2px 2px;display:flex;align-items:flex-end"><div style="width:100%;height:${Math.max(pc, 2) * 1.6}px;background:${pc >= 100 ? GK.deep : GK.lagon};border-radius:6px 6px 2px 2px"></div></div></div>
       <div style="height:2px;background:#cfdcdb"></div><div style="${T};font-size:15px;margin-top:6px">${d.heure}</div>
