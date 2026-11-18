@@ -146,6 +146,24 @@ async function act(action, a) {
   } catch (e) { FLASH = '⚠ Pas enregistré : ' + e; }
   renderCaisse(); setTimeout(() => { FLASH = ''; renderCaisse(); }, 4000);
 }
+// Fenêtre de correction d'un passager (hors #app : le rafraîchissement ne l'efface pas)
+function corriger(id) {
+  const r = C.resas.find(x => x.id === id); if (!r) return;
+  const sel = (k, opts) => `<select id="e-${k}">${opts.map(([v, l]) => `<option value="${v}" ${r[k] === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:#000a;z-index:9;overflow:auto;padding:16px';
+  ov.innerHTML = `<div class="card" style="max-width:480px;margin:20px auto"><b style="font-size:18px">Corriger le passager</b>
+    <div class="row" style="margin-top:8px"><div><label>Prénom</label><input id="e-prenom" value="${esc(r.prenom)}"></div><div><label>Nom</label><input id="e-nom" value="${esc(r.nom)}"></div></div>
+    <div class="row"><div><label>Type</label>${sel('type', [['adulte','Adulte'],['enfant','Enfant'],['bebe','Bébé']])}</div><div><label>Paiement</label>${sel('mode', [['Cash','Cash'],['Carte','Carte'],['GYG','GYG (déjà réglé)'],['Refacturé','Taxi partenaire']])}</div></div>
+    <div class="row"><div><label>Devise</label>${sel('devise', [['XPF','XPF'],['AUD','AUD'],['USD','USD']])}</div><div><label>Montant</label><input id="e-montant" type="number" value="${esc(r.montant)}"></div></div>
+    <div class="row" style="margin-top:12px"><button class="ok" id="e-ok">Enregistrer</button><button class="sec" id="e-x">Fermer</button></div>
+    <p style="margin:10px 0 0"><button class="no" style="width:100%" id="e-del">Annuler ce passager</button></p></div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector('#e-x').onclick = close;
+  ov.querySelector('#e-ok').onclick = () => { const f = {}; ['prenom','nom','type','mode','devise','montant'].forEach(k => f[k] = ov.querySelector('#e-' + k).value); f.statut = 'payé'; close(); act('edit', { id, fields: f }); };
+  ov.querySelector('#e-del').onclick = () => { if (confirm('Annuler ' + r.prenom + ' ' + r.nom + ' ?')) { close(); act('statut', { ids: [id], value: 'annulé' }); } };
+}
 // « Prénom Nom [enfant|bébé] » par ligne → passagers
 function papier(txt) {
   return txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
@@ -186,7 +204,7 @@ function renderCaisse() {
         <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:Math.max(0,${Number(d.bloquees)}-1)})">−1</button>
         <button class="sm" onclick="exportDep('${d.id}')">Exporter</button>
         ${d.pris == d.bloquees ? `<button class="sm no" onclick="if(confirm('Supprimer le départ ${d.heure} ?'))act('delDep',{id:'${d.id}'})">✕</button>` : ''}</div>
-      ${(() => { const l = C.resas.filter(r => r.depart === d.id && r.statut !== 'annulé'); return l.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)"><b>Passagers (${l.length})</b>${l.map((r, j) => `<div class="row" style="align-items:center;margin-top:4px;${j && l[j-1].groupe !== r.groupe ? 'border-top:1px solid var(--line);padding-top:4px' : ''}"><span>${esc(r.prenom)} ${esc(r.nom)} <span class="mut">${r.type==='enfant'?'enfant':r.type==='bebe'?'bébé':''}</span></span><span style="text-align:right">${fmt(r.montant,r.devise)} · ${r.mode} <span class="tag ${r.statut==='payé'?'p':'a'}">${r.statut}</span></span></div>`).join('')}</div>` : ''; })()}
+      ${(() => { const l = C.resas.filter(r => r.depart === d.id && r.statut !== 'annulé'); return l.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)"><b>Passagers (${l.length})</b>${l.map((r, j) => `<div class="row" style="align-items:center;margin-top:4px;${j && l[j-1].groupe !== r.groupe ? 'border-top:1px solid var(--line);padding-top:4px' : ''}"><span>${esc(r.prenom)} ${esc(r.nom)} <span class="mut">${r.type==='enfant'?'enfant':r.type==='bebe'?'bébé':''}</span></span><span style="text-align:right">${fmt(r.montant,r.devise)} · ${r.mode} <span class="tag ${r.statut==='payé'?'p':'a'}">${r.statut}</span> <button class="sm sec" style="padding:4px 9px" onclick="corriger('${r.id}')">✎</button></span></div>`).join('')}</div>` : ''; })()}
       <details ${OPEN.has('p-'+d.id)?'open':''} ontoggle="this.open?OPEN.add('p-${d.id}'):OPEN.delete('p-${d.id}')" style="margin-top:10px"><summary style="list-style:none;cursor:pointer;text-align:center;padding:11px;border-radius:10px;background:var(--ok);color:#fff;font-weight:700">+ Ajouter des passagers (feuille papier)</summary>
         <p class="mut" style="margin:8px 0 0">Un groupe qui a déjà payé</p>
         <textarea id="pn-${d.id}" oninput="DRAFT['${d.id}']=this.value" rows="3" style="width:100%;margin-top:6px;font:inherit" placeholder="Un passager par ligne : Prénom Nom&#10;ajoute « enfant » ou « bébé » en fin de ligne">${esc(DRAFT[d.id]||'')}</textarea>
