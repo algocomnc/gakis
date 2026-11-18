@@ -173,8 +173,10 @@ function renderCaisse() {
     : '';
   h += `<h2>Départs du jour (${C.deps.length})</h2><div class="card" style="padding:4px 14px">` + (C.deps.length ? '' : '<p class="mut">Aucun départ. Ajoute le premier ci-dessous.</p>') + C.deps.map((d, i) => `<details ${OPEN.has(d.id)?'open':''} ontoggle="this.open?OPEN.add('${d.id}'):OPEN.delete('${d.id}')" style="border-bottom:1px solid var(--line);padding:10px 0">
       <summary style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="mut">${i+1}.</span><span class="chip" style="background:${col(d.couleur)}"></span><b style="font-size:19px">${d.heure}</b>
-        <span class="mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.skipper||'—')}</span><b>${d.pris}/${d.capacite}</b></summary>
+        <span class="mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.skipper||'—')}</span>${d.parti ? `<span class="tag p">parti ${d.parti}</span>` : ''}<b>${d.pris}/${d.capacite}</b></summary>
       <div class="bar"><i style="width:${Math.min(100,d.pris/d.capacite*100)}%"></i></div>
+      ${d.parti ? `<div class="row" style="margin-top:8px;align-items:center"><b style="color:var(--ok)">✓ Bateau parti à ${d.parti}</b><button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'parti',value:''})">Annuler</button></div>`
+        : `<p style="margin:8px 0 0"><button style="width:100%" onclick="if(confirm('Le bateau de ${d.heure} est parti ?'))act('editDep',{id:'${d.id}',field:'parti',value:'1'})">⛵ Confirmer bateau parti</button></p>`}
       <p class="mut" style="margin:6px 0">Retour ${d.retour} · ${d.payes} payés · ${d.bloquees} bloquées</p>
       <div class="row"><select onchange="act('editDep',{id:'${d.id}',field:'heure',value:this.value})">${TIMES(d.heure)}</select>
         <select onchange="act('editDep',{id:'${d.id}',field:'couleur',value:this.value})"><option value="">Couleur…</option>${C.couleurs.map(c=>`<option ${c===d.couleur?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
