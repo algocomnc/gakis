@@ -146,8 +146,25 @@ async function act(action, a) {
   } catch (e) { FLASH = '⚠ Pas enregistré : ' + e; }
   renderCaisse(); setTimeout(() => { FLASH = ''; renderCaisse(); }, 4000);
 }
+// « Prénom Nom [enfant|bébé] » par ligne → passagers
+function papier(txt) {
+  return txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const w = l.split(/\s+/), last = w[w.length - 1].toLowerCase().replace(/[()]/g, '');
+    const type = /^(enfant|kid|child)$/.test(last) ? 'enfant' : /^(b[ée]b[ée]|baby)$/.test(last) ? 'bebe' : 'adulte';
+    if (type !== 'adulte' && w.length > 1) w.pop();
+    return { prenom: w[0], nom: w.slice(1).join(' '), type };
+  });
+}
+const DRAFT = {};
+async function addManuel(id) {
+  const people = papier($('#pn-' + id).value);
+  if (!people.length) { alert('Écris au moins un nom'); return; }
+  const a = { depart: id, people, mode: $('#pm-' + id).value, devise: $('#pd-' + id).value, montant: $('#px-' + id).value };
+  const txt = DRAFT[id]; DRAFT[id] = ''; await act('addManuel', a);
+  if (FLASH.startsWith('⚠')) { DRAFT[id] = txt; renderCaisse(); } // échec : on garde la saisie
+}
 function renderCaisse() {
-  if (document.activeElement && document.activeElement.matches('input,select')) return; // ne pas écraser une saisie en cours
+  if (document.activeElement && document.activeElement.matches('input,select,textarea')) return; // ne pas écraser une saisie en cours
   if (VIEW === 'compta') return;
   const dep = id => C.deps.find(d => d.id === id) || {};
   let h = LOGO + TABS() + `<div class="row" style="margin-bottom:8px"><a class="sm sec" style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}" target="_blank">Vue client</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=skipper" target="_blank">Vue skippers</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=qr" target="_blank">QR à imprimer</a></div>`;
@@ -166,7 +183,13 @@ function renderCaisse() {
         <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:Math.max(0,${Number(d.bloquees)}-1)})">−1</button>
         <button class="sm sec" onclick="act('editDep',{id:'${d.id}',field:'bloquees',value:${Number(d.bloquees)}+1})">+1</button>
         <button class="sm" onclick="exportDep('${d.id}')">Exporter</button>
-        ${d.pris == d.bloquees ? `<button class="sm no" onclick="if(confirm('Supprimer le départ ${d.heure} ?'))act('delDep',{id:'${d.id}'})">✕</button>` : ''}</div></details>`).join('') + '</div>';
+        ${d.pris == d.bloquees ? `<button class="sm no" onclick="if(confirm('Supprimer le départ ${d.heure} ?'))act('delDep',{id:'${d.id}'})">✕</button>` : ''}</div>
+      <div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)"><b>Ajouter depuis le papier</b> <span class="mut">(un groupe qui a payé)</span>
+        <textarea id="pn-${d.id}" oninput="DRAFT['${d.id}']=this.value" rows="3" style="width:100%;margin-top:6px;font:inherit" placeholder="Un passager par ligne : Prénom Nom&#10;ajoute « enfant » ou « bébé » en fin de ligne">${esc(DRAFT[d.id]||'')}</textarea>
+        <div class="row" style="margin-top:6px"><select id="pm-${d.id}"><option>Carte</option><option>Cash</option><option value="GYG">GYG (prépayé)</option></select>
+          <select id="pd-${d.id}"><option>XPF</option><option>AUD</option><option>USD</option></select>
+          <input id="px-${d.id}" type="number" placeholder="Prix/adulte (vide = appli)"></div>
+        <p style="margin:6px 0 0"><button class="sm ok" onclick="addManuel('${d.id}')">Ajouter (payé)</button></p></div></details>`).join('') + '</div>';
   h += `<div class="card"><b>Nouveau départ</b><div class="row"><div><label>Heure</label><select id="nh" onchange="NEW.heure=this.value">${TIMES(NEW.heure || NEXT())}</select></div><div><label>Couleur</label><select id="nc" onchange="NEW.couleur=this.value">${C.couleurs.map(c=>`<option ${c===NEW.couleur?'selected':''}>${esc(c)}</option>`).join('')}</select></div></div>
      <div class="row"><div><label>Skipper</label><select id="ns" onchange="NEW.skipper=this.value">${['',...C.skippers].map(k=>`<option value="${esc(k)}" ${k===(NEW.skipper||'')?'selected':''}>${esc(k||'Skipper…')}</option>`).join('')}</select></div><div><label>Places</label><input id="np" type="number" value="${NEW.capacite || C.capacite}" onchange="NEW.capacite=this.value"></div></div>
      <p><button onclick="act('addDep',{heure:$('#nh').value,couleur:$('#nc').value,skipper:$('#ns').value,capacite:$('#np').value})">Ajouter</button>
