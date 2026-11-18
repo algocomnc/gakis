@@ -185,7 +185,7 @@ function renderCaisse() {
   if (document.activeElement && document.activeElement.matches('input,select,textarea')) return; // ne pas écraser une saisie en cours
   if (VIEW === 'compta') return;
   const dep = id => C.deps.find(d => d.id === id) || {};
-  let h = LOGO + TABS() + `<div class="row" style="margin-bottom:8px"><a class="sm sec" style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}" target="_blank">Vue client</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=skipper" target="_blank">Vue skippers</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=qr" target="_blank">QR à imprimer</a></div>`;
+  let h = LOGO + TABS() + `<div class="row" style="margin-bottom:8px"><a class="sm sec" style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}" target="_blank">Vue client</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=skipper" target="_blank">Vue skippers</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=ilot" target="_blank">Vue îlot</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=qr" target="_blank">QR à imprimer</a></div>`;
   h += C.ferme
     ? `<div class="card" style="border-left:6px solid var(--warn)"><b>Journée clôturée</b><p class="mut" style="margin:4px 0 10px">Les réservations en ligne sont fermées (elles rouvrent toutes seules demain).</p><div class="row"><button onclick="VIEW='compta';loadCompta()">Compta · PDF</button><button class="sec" onclick="act('fermer',{ferme:false})">Rouvrir</button></div></div>`
     : '';
@@ -500,6 +500,26 @@ async function loadSkipper() {
   $('#app').innerHTML = h;
 }
 
+/* ================= ÎLOT (agent sur place) ================= */
+async function loadIlot() {
+  const s = await call('getIlot'), pl = (n, a, b) => n + ' ' + (n > 1 ? b : a);
+  // sur l'îlot = parti (ou heure passée) et pas encore l'heure du retour
+  const etat = d => (d.parti || d.heure <= s.now) ? (d.retour > s.now ? 'ilot' : 'rentre') : 'avenir';
+  const bloc = (titre, list) => list.length ? `<h2>${titre}</h2>` + list.map(d => `<div class="card" style="border-left:14px solid ${col(d.couleur)}">
+      <div class="row" style="align-items:center"><div><div style="font-size:26px;font-weight:800">${d.couleur ? `<span class="chip" style="background:${col(d.couleur)};width:22px;height:22px"></span>Bracelet ${esc(d.couleur)}` : 'Pas de bracelet'}</div>
+        <div class="mut">Bateau ${d.heure}${d.parti ? ' (parti ' + d.parti + ')' : ''} · ${esc(d.skipper || '—')}</div></div>
+        <div style="text-align:right"><div class="mut">Retour</div><div style="font-size:30px;font-weight:800">${d.retour}</div></div></div>
+      <p style="margin:8px 0;font-weight:700">${pl(d.pax, 'personne', 'personnes')} · ${[d.a && pl(d.a, 'adulte', 'adultes'), d.e && pl(d.e, 'enfant', 'enfants'), d.b && pl(d.b, 'bébé', 'bébés')].filter(Boolean).join(' · ')}</p>
+      ${d.taxi.map(t => `<div style="padding:8px 10px;border-radius:10px;background:#fff1d6;color:#7a4d00;font-weight:800">🚕 Taxi ${esc(t.p)} · ${t.nb} pers.</div>`).join('')}
+      ${d.groupes.map(g => `<div style="border-top:1px solid var(--line);padding:6px 0">${g.map(p => esc(p.prenom + ' ' + p.nom) + (p.type === 'enfant' ? ' <span class="mut">(enfant)</span>' : p.type === 'bebe' ? ' <span class="mut">(bébé)</span>' : '')).join(', ')}</div>`).join('')}
+      ${Number(d.bloquees) ? `<div class="mut" style="border-top:1px solid var(--line);padding-top:6px">+ ${d.bloquees} place(s) réservée(s)</div>` : ''}</div>`).join('') : '';
+  const by = e => s.deps.filter(d => etat(d) === e);
+  let h = LOGO + `<p class="mut">Vue îlot · mis à jour à ${s.now}</p>`;
+  h += bloc('Sur l’îlot', by('ilot').sort((a, b) => a.retour.localeCompare(b.retour))) + bloc('Arrivent ensuite', by('avenir')) + bloc('Déjà rentrés', by('rentre'));
+  if (!s.deps.length) h += '<div class="card">Aucun bateau aujourd’hui.</div>';
+  $('#app').innerHTML = h;
+}
+
 /* ================= QR ================= */
 const QR_API = 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=10&data='; // URL hors template literal : Google retire les « // » dedans
 function renderQr() { // affiche A4 à imprimer (Cmd+P)
@@ -521,6 +541,7 @@ function renderQr() { // affiche A4 à imprimer (Cmd+P)
 const poll = (f, ms) => { f(); setInterval(f, ms); };
 if (PAGE === 'caisse') { PIN ? loadCaisse() : pinScreen(); setInterval(() => C && call('getCaisse', PIN).then(c => { C = c; if (!document.activeElement.matches('input, select, textarea')) renderCaisse(); }).catch(()=>{}), 6000); }
 if (PAGE === 'skipper') poll(() => loadSkipper().catch(e => $('#app').textContent = 'Erreur : ' + e), 8000);
+if (PAGE === 'ilot') poll(() => loadIlot().catch(e => $('#app').textContent = 'Erreur : ' + e), 15000);
 if (PAGE === 'qr') renderQr();
 if (PAGE === 'resa') loadPub().then(() => renderResa()).then(() => setInterval(() => !busy && $('.big') && loadPub().then(() => { if (!document.activeElement.matches('input')) renderResa(); }), 20000)).catch(e => $('#app').textContent = e);
 </script></body></html>
