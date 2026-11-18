@@ -506,10 +506,10 @@ async function loadIlot() {
   // sur l'îlot = parti (ou heure passée) et pas encore l'heure du retour
   const etat = d => (d.parti || d.heure <= s.now) ? (d.retour > s.now ? 'ilot' : 'rentre') : 'avenir';
   const bloc = (titre, list) => list.length ? `<h2>${titre}</h2>` + list.map(d => `<div class="card" style="border-left:14px solid ${col(d.couleur)}">
-      <div class="row" style="align-items:center"><div><div style="font-size:26px;font-weight:800">${d.couleur ? `<span class="chip" style="background:${col(d.couleur)};width:22px;height:22px"></span>Bracelet ${esc(d.couleur)}` : 'Pas de bracelet'}</div>
+      <div style="display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><div style="font-size:22px;font-weight:800;white-space:nowrap">${d.couleur ? `<span class="chip" style="background:${col(d.couleur)};width:22px;height:22px"></span>Bracelet ${esc(d.couleur)}` : 'Pas de bracelet'}</div>
         <div class="mut">Bateau ${d.heure}${d.parti ? ' (parti ' + d.parti + ')' : ''} · ${esc(d.skipper || '—')}</div></div>
-        <div style="text-align:right"><div class="mut">Retour</div><div style="font-size:30px;font-weight:800">${d.retour}</div></div></div>
-      <p style="margin:8px 0;font-weight:700">${pl(d.pax, 'personne', 'personnes')} · ${[d.a && pl(d.a, 'adulte', 'adultes'), d.e && pl(d.e, 'enfant', 'enfants'), d.b && pl(d.b, 'bébé', 'bébés')].filter(Boolean).join(' · ')}</p>
+        <div style="text-align:right;flex:none"><div class="mut">Retour</div><div style="font-size:30px;font-weight:800">${d.retour}</div></div></div>
+      <p style="margin:8px 0;font-weight:700">${[pl(d.pax, 'personne', 'personnes'), d.a && pl(d.a, 'adulte', 'adultes'), d.e && pl(d.e, 'enfant', 'enfants'), d.b && pl(d.b, 'bébé', 'bébés')].filter(Boolean).join(' · ')}</p>
       ${d.taxi.map(t => `<div style="padding:8px 10px;border-radius:10px;background:#fff1d6;color:#7a4d00;font-weight:800">🚕 Taxi ${esc(t.p)} · ${t.nb} pers.</div>`).join('')}
       ${d.groupes.map(g => `<div style="border-top:1px solid var(--line);padding:6px 0">${g.map(p => esc(p.prenom + ' ' + p.nom) + (p.type === 'enfant' ? ' <span class="mut">(enfant)</span>' : p.type === 'bebe' ? ' <span class="mut">(bébé)</span>' : '')).join(', ')}</div>`).join('')}
       ${Number(d.bloquees) ? `<div class="mut" style="border-top:1px solid var(--line);padding-top:6px">+ ${d.bloquees} place(s) réservée(s)</div>` : ''}</div>`).join('') : '';
