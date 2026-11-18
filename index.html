@@ -40,7 +40,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px 4px;b
 window.onerror = (m, s, l) => { document.getElementById('app').textContent = 'Erreur : ' + m + ' (ligne ' + l + ')'; };
 const PAGE = (new URLSearchParams(location.search).get('p') || 'resa'), URL_ = (location.origin + location.pathname);
 const COLORS = {bleu:'#1e5bd8',cyan:'#19c3dd',vert:'#2e9d4f',jaune:'#f5c518',orange:'#f08a24',rouge:'#d93025',rose:'#ec6aa6',violet:'#7b4fd0','vert fluo':'#39ff14',blanc:'#ffffff',noir:'#222',gris:'#999'};
-const col = c => COLORS[String(c||'').trim().toLowerCase()] || '#ccc';
+const col = c => COLORS[String(c||'').trim().toLowerCase()] || (String(c||'').trim() ? '#ccc' : 'transparent'); // pas de couleur = pas de bracelet
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = (n, d) => d === 'AUD' ? 'A$' + n : d === 'USD' ? 'US$' + n : Number(n).toLocaleString('fr-FR') + ' XPF';
@@ -248,8 +248,8 @@ function exportDep(id) {
   x.fillStyle = '#e8f1fc'; x.fillRect(60, 300, W - 120, 76); x.fillStyle = '#0b5fa5'; x.fillRect(60, 300, 8, 76);
   x.fillStyle = '#0d2238'; x.font = '700 42' + F; x.fillText(rep, 92, 353);
   x.font = '400 38' + F; x.fillText('Retour ' + d.retour + '   ·   Skipper ' + (d.skipper || '—'), 60, 440);
-  x.fillStyle = col(d.couleur); x.beginPath(); x.arc(78, 498, 20, 0, 7); x.fill(); x.strokeStyle = '#0003'; x.lineWidth = 2; x.stroke();
-  x.fillStyle = '#0d2238'; x.font = '700 38' + F; x.fillText('Bracelet ' + (d.couleur || '—'), 112, 511);
+  if (d.couleur) { x.fillStyle = col(d.couleur); x.beginPath(); x.arc(78, 498, 20, 0, 7); x.fill(); x.strokeStyle = '#0003'; x.lineWidth = 2; x.stroke(); }
+  x.fillStyle = '#0d2238'; x.font = '700 38' + F; x.fillText(d.couleur ? 'Bracelet ' + d.couleur : 'Pas de bracelet', d.couleur ? 112 : 60, 511);
   x.fillStyle = '#dde4ea'; x.fillRect(60, 550, W - 120, 2);
   x.font = '400 34' + F; let y = 610, last = '';
   list.forEach(r => {
@@ -468,7 +468,7 @@ async function loadSkipper() {
      <div style="text-align:right"><div class="seats">${d.pris}<span class="mut" style="font-size:20px">/${d.capacite}</span></div><div class="mut">${d.payes} payés · ${d.bloquees} bloquées</div></div></div>
      <div class="bar"><i style="width:${Math.min(100,d.pris/d.capacite*100)}%"></i></div>
      ${(d.taxi||[]).map(t => `<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff1d6;color:#7a4d00;font-size:20px;font-weight:800">🚕 Taxi ${esc(t.p)} · ${t.nb} pers. <span style="font-size:14px;font-weight:600">(leurs clients)</span></div>`).join('')}
-     <p style="margin:8px 0 0">Bracelet <span class="chip" style="background:${col(d.couleur)}"></span><b>${esc(d.couleur||'—')}</b> · Retour <b>${d.retour}</b> · Skipper <b>${esc(d.skipper||'—')}</b></p></div>`).join('');
+     <p style="margin:8px 0 0">${d.couleur ? `Bracelet <span class="chip" style="background:${col(d.couleur)}"></span><b>${esc(d.couleur)}</b> · ` : (d.taxi||[]).length ? 'Pas de bracelet · ' : ''}Retour <b>${d.retour}</b> · Skipper <b>${esc(d.skipper||'—')}</b></p></div>`).join('');
   $('#app').innerHTML = h;
 }
 
