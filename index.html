@@ -73,6 +73,7 @@ function total() {
 }
 function renderResa(err) {
   const a = document.activeElement, focusId = a && a.id, pos = a && a.selectionStart;
+  if (PUB.ferme) { $('#app').innerHTML = LOGO + '<div class="card"><b>Bookings are closed for today.</b><p class="mut">See you tomorrow! Questions? Ask at the Gakis desk.</p></div>'; return; }
   if (!PUB.deps.length) { $('#app').innerHTML = LOGO + '<div class="card"><b>No boats open for booking right now.</b><p class="mut">Please ask at the Gakis desk.</p></div>'; return; }
   if (S.depart && !PUB.deps.some(d => d.id === S.depart)) S.depart = null;
   const many = S.people.length > 1;
@@ -134,6 +135,7 @@ async function loadCaisse() {
   catch (e) { pinScreen(e); }
 }
 let OPEN = new Set(), FLASH = '', NEW = {}; // NEW = saisie du formulaire « Nouveau départ », gardée entre deux rafraîchissements
+async function fermer() { await act('fermer', {ferme: true}); if (C.ferme) { VIEW = 'compta'; loadCompta(); } }
 async function act(action, a) {
   document.activeElement && document.activeElement.blur();
   FLASH = 'Enregistrement…'; renderCaisse();
@@ -149,6 +151,9 @@ function renderCaisse() {
   if (VIEW === 'compta') return;
   const dep = id => C.deps.find(d => d.id === id) || {};
   let h = LOGO + TABS() + `<div class="row" style="margin-bottom:8px"><a class="sm sec" style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}" target="_blank">Vue client</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=skipper" target="_blank">Vue skippers</a><a style="text-align:center;padding:9px;border-radius:10px;background:#e6eef5;text-decoration:none;font-weight:600" href="${URL_}?p=qr" target="_blank">QR à imprimer</a></div>`;
+  h += C.ferme
+    ? `<div class="card" style="border-left:6px solid var(--warn)"><b>Journée clôturée</b><p class="mut" style="margin:4px 0 10px">Les réservations en ligne sont fermées (elles rouvrent toutes seules demain).</p><div class="row"><button onclick="VIEW='compta';loadCompta()">Compta · PDF</button><button class="sec" onclick="act('fermer',{ferme:false})">Rouvrir</button></div></div>`
+    : '';
   h += `<h2>Départs du jour (${C.deps.length})</h2><div class="card" style="padding:4px 14px">` + (C.deps.length ? '' : '<p class="mut">Aucun départ. Ajoute le premier ci-dessous.</p>') + C.deps.map((d, i) => `<details ${OPEN.has(d.id)?'open':''} ontoggle="this.open?OPEN.add('${d.id}'):OPEN.delete('${d.id}')" style="border-bottom:1px solid var(--line);padding:10px 0">
       <summary style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="mut">${i+1}.</span><span class="chip" style="background:${col(d.couleur)}"></span><b style="font-size:19px">${d.heure}</b>
         <span class="mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.skipper||'—')}</span><b>${d.pris}/${d.capacite}</b></summary>
@@ -167,6 +172,7 @@ function renderCaisse() {
      <p><button onclick="act('addDep',{heure:$('#nh').value,couleur:$('#nc').value,skipper:$('#ns').value,capacite:$('#np').value})">Ajouter</button>
      <b style="margin-left:10px;color:${FLASH.startsWith('⚠')?'var(--warn)':'var(--ok)'}">${esc(FLASH)}</b></p></div>`;
   const taux = d => Number((C.reglages.find(r => r[0] === 'Taux XPF pour 1 ' + d) || [])[1]) || 1;
+  if (!C.ferme) h += `<p><button class="no" style="width:100%" onclick="if(confirm('Clôturer la journée ? Les touristes ne pourront plus réserver.'))fermer()">Clôturer la journée</button></p>`;
   h += `<details class="card"><summary><b>Prix & réglages</b></summary>${C.reglages.map(([k,v]) => `<label>${esc(k)}${/(AUD|USD) \(en XPF\)/.test(k) ? ' → <b>' + fmt(Math.ceil(Number(v) / taux(k.match(/AUD|USD/)[0])), k.match(/AUD|USD/)[0]) + '</b>' : ''}</label>
      <input value="${esc(v)}" onchange="act('setting',{key:${esc(JSON.stringify(k))},value:this.value})">`).join('')}
      <p class="mut">Tous les prix en CFP. Prix AUD/USD = prix « (en XPF) » ÷ taux, arrondi au dollar au-dessus. Les résas déjà faites gardent leur prix.</p></details>`;
