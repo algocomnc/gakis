@@ -244,7 +244,7 @@ function renderCaisse() {
       ${g.map(r => `<div class="row" style="align-items:center;margin-top:6px"><span class="${r.statut==='annulé'?'x':''}">${esc(r.prenom)} ${esc(r.nom)} <span class="mut">${r.type==='enfant'?'enfant':r.type==='bebe'?'bébé':''}</span></span>
         <span style="text-align:right">${fmt(r.montant,r.devise)} · ${r.mode} <span class="tag ${r.statut==='payé'?'p':r.statut==='annulé'?'x':'a'}">${r.statut}</span>
         ${!ens && r.statut==='attente' ? `<button class="sm ok" onclick="act('statut',{ids:['${r.id}'],value:'payé'})">Payé</button>` : ''}</span></div>`).join('')}
-      ${due ? `<div class="total">Reste : ${due}${ens?' · '+g[0].mode:''}</div>` : ''}
+      ${g[0].mode==='GYG' && live.some(r=>r.statut==='attente') ? `<div class="total">GetYourGuide · vérifier le booking</div>` : due ? `<div class="total">Reste : ${due}${ens?' · '+g[0].mode:''}</div>` : ''}
       <div class="row" style="margin-top:8px">
         ${g[0].mode==='GYG' && live.some(r=>r.statut==='attente') ? `<button class="ok" onclick="act('statut',{ids:${ids(live)},value:'payé'})">✓ Présents · booking GYG vu</button>` : ''}
         ${g[0].mode!=='GYG' && ens && live.some(r=>r.statut==='attente') ? `<button class="ok" onclick="act('statut',{ids:${ids(live)},value:'payé'})">Tout payé</button>` : ''}
