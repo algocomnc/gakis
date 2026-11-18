@@ -93,6 +93,8 @@ function renderResa(err) {
   else {
   if (many) h += '<label>Pay</label>' + seg('ensemble', [['1','All together'],['','Separately']], S.ensemble?'1':'');
   if (!many || S.ensemble) h += PAY(S.mode, S.devise);
+  h += `<label>Promo code</label><div class="row"><input id="promo" value="${esc(S.promo || '')}" autocapitalize="characters"><button type="button" class="sec" style="flex:none;width:auto;padding:0 18px" onclick="applyPromo()">Apply</button></div>`;
+  if (S.promoTried && S.promo) h += PUB.promo ? '<p style="margin:6px 0 0;color:var(--ok);font-weight:700">✓ Promo code applied</p>' : '<p style="margin:6px 0 0;color:var(--warn)">This promo code is not valid.</p>';
   h += `<div class="total">Total: ${total()}</div>`;
   }
   if (!S.gyg && S.mode === 'Carte' && (!many || S.ensemble) && PUB.taux) { // équivalence indicative pour les touristes
@@ -109,7 +111,7 @@ async function submitResa() {
   if (S.people.some(p => !p.prenom.trim() || !p.nom.trim())) return renderResa('Please enter first and last name for everyone.');
   busy = true; renderResa();
   try {
-    const r = await call('book', {depart:S.depart, people:S.people, tel:S.tel, ensemble:S.ensemble, devise:S.devise, mode:S.mode, gyg:S.gyg});
+    const r = await call('book', {depart:S.depart, people:S.people, tel:S.tel, ensemble:S.ensemble, devise:S.devise, mode:S.mode, gyg:S.gyg, promo: !S.gyg && PUB.promo ? S.promo : ''});
     const sums = {}; r.rows.forEach(x => sums[x.devise] = (sums[x.devise]||0) + Number(x.montant));
     $('#app').innerHTML = LOGO + `<div class="card" style="text-align:center"><p class="mut">Your booking number</p><div class="code">${r.groupe}</div>
       <p><b>Boat ${r.heure}</b> · back from the island ${r.retour}</p><p>${r.rows.map(x=>esc(x.prenom)).join(', ')}</p>
@@ -126,7 +128,8 @@ async function submitResa() {
       </ul></div>`;
   } catch (e) { busy = false; await loadPub(); renderResa(String(e)); }
 }
-async function loadPub() { PUB = await call('getPublic'); }
+async function loadPub() { PUB = await call('getPublic', S.promo || ''); }
+async function applyPromo() { S.promo = ($('#promo').value || '').trim(); await loadPub(); S.promoTried = true; renderResa(); }
 
 /* ================= CAISSE ================= */
 let C = null, PIN = '', filt = 'attente', VIEW = 'caisse', K = null, KDATE = '';
