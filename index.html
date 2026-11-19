@@ -419,12 +419,12 @@ async function bilanImage(K, s) {
   document.body.appendChild(el);
   try {
     // l'image doit tenir sur une page A4, sinon le convertisseur Google la repousse en page 2 (page 1 blanche)
-    const c = await html2canvas(el, {scale: 2, backgroundColor: '#fff', logging: false}), H = Math.round(c.width * 1.40); // A4 pleine page (297/210 = 1.414)
-    if (c.height <= H) return c.toDataURL('image/jpeg', 0.9);
+    const c = await html2canvas(el, {scale: 1.5, backgroundColor: '#fff', logging: false}), H = Math.round(c.width * 1.40); // A4 pleine page (297/210 = 1.414)
+    if (c.height <= H) return c.toDataURL('image/jpeg', 0.72);
     const f = document.createElement('canvas'), k = H / c.height, x = f.getContext('2d');
     f.width = c.width; f.height = H; x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, H);
     x.drawImage(c, (c.width - c.width * k) / 2, 0, c.width * k, H);
-    return f.toDataURL('image/jpeg', 0.9);
+    return f.toDataURL('image/jpeg', 0.72);
   }
   finally { el.remove(); }
 }
