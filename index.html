@@ -76,7 +76,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 4px;b
 .ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .hl{background:linear-gradient(135deg,var(--deep) 0%,#0b7a73 100%);color:#fff;border-radius:22px;padding:18px 18px 16px;box-shadow:0 14px 28px -14px #015450b3;margin:4px 0 10px}
 .hl small{display:block;font-size:13px;color:#cdeeea}.hl b{display:block;font:600 34px/1.1 var(--disp);margin:4px 0 2px;letter-spacing:-.01em}
-.hl.next{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.hl.next b{font-size:44px}
+.hl.next,.hl .next{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.hl.next b,.hl .next b{font-size:44px}
 .hl .bar{background:#ffffff2e;height:8px;margin-top:14px}.hl .bar i{background:#fff}.hl .legend{display:flex;justify-content:space-between;font-size:12px;color:#cdeeea;margin-top:6px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head>
@@ -427,10 +427,10 @@ function renderCompta() {
   const s = stats(K);
   $('#app').innerHTML = LOGO + TABS() + `<div class="row" style="align-items:end"><div><label>Jour</label><input type="date" value="${K.date}" onchange="loadCompta(this.value)"></div>
     <button onclick="cloture(this)">Clôturer · PDF</button></div>
-    <div class="hl" style="margin-top:14px"><small>Chiffre du jour · équivalent CFP</small><b>${fmt(s.totalCfp, 'XPF')}</b>
+    <div class="hl" style="margin-top:14px"><div class="next"><div><small>Personnes du jour</small><b>${s.pax}</b><small>${[[s.adultes,'adulte'],[s.enfants,'enfant'],[s.bebes,'bébé']].filter(x => x[0]).map(([v, l]) => v + ' ' + l + (v > 1 ? 's' : '')).join(' · ')}</small></div><div style="text-align:right"><small>Chiffre du jour</small><b style="font-size:26px;white-space:nowrap">${fmt(s.totalCfp, 'XPF')}</b><small>équivalent CFP</small></div></div>
       <div class="bar"><i style="width:${s.totalCfp ? Math.round(s.carteCfp / s.totalCfp * 100) : 0}%"></i></div>
       <div class="legend"><span>Carte ${fmt(s.carteCfp, 'XPF')}</span><span>Cash ≈ ${fmt(s.cashCfp, 'XPF')}</span></div></div>
-    <div class="tiles two">${tile('users', '#2a78d6', s.pax, s.adultes + ' A · ' + s.enfants + ' E · ' + s.bebes + ' B')}${tile('chart', '#0f9a92', s.taux + ' %', 'Remplissage · ' + s.occupe + '/' + s.cap)}${tile('boat', '#7b4fd0', K.deps.length, 'Bateaux')}${tile('clock', '#eb6834', s.attente.reduce((t, a) => t + a.nb, 0), 'Reste à encaisser')}</div>` + comptaHtml(K, s);
+    <div class="tiles two">${tile('wallet', '#2a78d6', fmt(s.pax ? Math.round(s.totalCfp / s.pax) : 0, 'XPF'), 'Panier moyen / pers.')}${tile('chart', '#0f9a92', s.taux + ' %', 'Remplissage · ' + s.occupe + '/' + s.cap)}${tile('boat', '#7b4fd0', K.deps.length, 'Bateaux')}${tile('clock', '#eb6834', s.attente.reduce((t, a) => t + a.nb, 0), 'Reste à encaisser')}</div>` + comptaHtml(K, s);
 }
 // PDF de clôture : page 1 visuelle, page 2 détail. Mise en page en tableaux (le convertisseur PDF de Google ignore flex/grid)
 const SER = {a:'#0f9a92', e:'#eb6834', b:'#2a78d6'};
