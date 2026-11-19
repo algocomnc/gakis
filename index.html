@@ -74,6 +74,9 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 4px;b
 .tile small{display:block;font-size:12px;font-weight:500;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 15%,#fff);color:var(--c)}
 .ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.paq{padding:4px 16px}.pq{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}.pq:last-child{border-bottom:0}
+.pq b{font-weight:600}.pq .tag{font-size:11px;padding:2px 8px}.pj{flex:none;width:86px;font-size:13px;font-weight:600;color:var(--deep)}.pq.auj .pj{color:var(--warn)}
+.pn{text-align:right;flex:none}.pn b{display:block;font:600 19px/1.1 var(--disp);color:var(--deep)}.pn small{font-size:11px;color:var(--mut)}
 .hl{background:linear-gradient(135deg,var(--deep) 0%,#0b7a73 100%);color:#fff;border-radius:22px;padding:18px 18px 16px;box-shadow:0 14px 28px -14px #015450b3;margin:4px 0 10px}
 .hl small{display:block;font-size:13px;color:#cdeeea}.hl b{display:block;font:600 34px/1.1 var(--disp);margin:4px 0 2px;letter-spacing:-.01em}
 .hl.next,.hl .next{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.hl.next b,.hl .next b{font-size:44px}
@@ -246,6 +249,15 @@ async function addManuel(id) {
   const txt = DRAFT[id]; DRAFT[id] = ''; await act('addManuel', a);
   if (FLASH.startsWith('⚠')) { DRAFT[id] = txt; renderCaisse(); } // échec : on garde la saisie
 }
+function PAQ() { // prochaines escales de paquebots (onglet « Paquebots » du Sheet)
+  const L = C.paquebots || [];
+  if (!L.length) return '';
+  const td = new Date(), iso = d => d.toLocaleDateString('sv-SE', { timeZone: 'Pacific/Noumea' }), t0 = iso(td), t1 = iso(new Date(td.getTime() + 864e5));
+  const jour = d => d === t0 ? "Aujourd'hui" : d === t1 ? 'Demain' : new Date(d + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/^./, c => c.toUpperCase());
+  return `<h2>Paquebots à venir</h2><div class="card paq">` + L.map(p => `<div class="pq${p.date === t0 ? ' auj' : ''}"><div class="pj">${jour(p.date)}</div>
+    <div style="flex:1;min-width:0"><b>${esc(p.bateau)}</b><div class="mut">${p.arrivee || '?'} → ${p.depart || '?'}${p.marche === 'AU' ? ' <span class="tag p" style="margin-left:4px">Australiens</span>' : ''}</div></div>
+    ${p.passagers ? `<div class="pn"><b>~${Number(p.passagers).toLocaleString('fr-FR')}</b><small>passagers</small></div>` : ''}</div>`).join('') + `</div>`;
+}
 function renderCaisse() {
   if (document.activeElement && document.activeElement.matches('input,select,textarea')) return; // ne pas écraser une saisie en cours
   if (VIEW === 'compta') return;
@@ -259,6 +271,7 @@ function renderCaisse() {
   if (nx && !C.ferme) { const [a, b] = nx.heure.split(':'), [c, e] = C.now.split(':'), mn = a * 60 + +b - c * 60 - e, att = C.resas.filter(r => r.depart === nx.id && r.statut === 'attente').length;
     h += `<div class="hl next"><div><small>Prochain bateau${mn > 0 ? ' · dans ' + mn + ' min' : mn < 0 ? ' · en retard' : ''}</small><b>${nx.heure}</b><small>${esc(nx.skipper || 'Skipper ?')}${att ? ' · <span style="color:#ffd3c0;font-weight:700">' + att + ' à encaisser</span>' : ''}</small></div><div style="text-align:right"><small>Places libres</small><b>${nx.libres}<span style="font-size:18px;opacity:.7">/${nx.capacite}</span></b></div></div>`; }
   h += `<div class="tiles">${tile('boat', '#0f9a92', C.deps.length, 'Bateaux')}${tile('users', '#2a78d6', C.deps.reduce((t, d) => t + Number(d.pris || 0), 0), 'Passagers')}${tile('seat', '#7b4fd0', C.deps.reduce((t, d) => t + Number(d.libres || 0), 0), 'Libres')}${tile('clock', '#eb6834', pend, 'En attente')}</div>`;
+  h += PAQ();
   h += `<h2>Départs du jour (${C.deps.length})</h2><div class="card" style="padding:6px 16px">` + (C.deps.length ? '' : '<p class="mut">Aucun départ. Ajoute le premier ci-dessous.</p>') + C.deps.map((d, i) => `<details ${OPEN.has(d.id)?'open':''} ontoggle="this.open?OPEN.add('${d.id}'):OPEN.delete('${d.id}')" class="depline">
       <summary class="sum"><span class="mut">${i+1}.</span><span class="chip" style="background:${col(d.couleur)}"></span><span class="time" style="font-size:21px">${d.heure}</span>
         <span class="mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.skipper||'—')}</span>${d.parti ? `<span class="tag p">parti ${d.parti}</span>` : ''}<b>${d.pris}/${d.capacite}</b></summary>
