@@ -76,6 +76,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 4px;b
 .ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .paq{padding:4px 16px}.pq{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}.pq:last-child{border-bottom:0}
 .pq b{font-weight:600}.pq .tag{font-size:11px;padding:2px 8px}.pj{flex:none;width:86px;font-size:13px;font-weight:600;color:var(--deep)}.pq.auj .pj{color:var(--warn)}
+.aff{display:block;width:max-content;margin-top:5px;font-size:11px;font-weight:700;color:#fff;padding:2px 8px;border-radius:999px}
 .pn{text-align:right;flex:none}.pn b{display:block;font:600 19px/1.1 var(--disp);color:var(--deep)}.pn small{font-size:11px;color:var(--mut)}
 .hl{background:linear-gradient(135deg,var(--deep) 0%,#0b7a73 100%);color:#fff;border-radius:22px;padding:18px 18px 16px;box-shadow:0 14px 28px -14px #015450b3;margin:4px 0 10px}
 .hl small{display:block;font-size:13px;color:#cdeeea}.hl b{display:block;font:600 34px/1.1 var(--disp);margin:4px 0 2px;letter-spacing:-.01em}
@@ -249,15 +250,16 @@ async function addManuel(id) {
   const txt = DRAFT[id]; DRAFT[id] = ''; await act('addManuel', a);
   if (FLASH.startsWith('⚠')) { DRAFT[id] = txt; renderCaisse(); } // échec : on garde la saisie
 }
+const AFF = { quiet: ['Calme', '#2FA97E'], light: ['Léger', '#7FB84F'], moderate: ['Moyen', '#D99A1E'], busy: ['Chargé', '#EE7038'], peak: ['Pic', '#FF2D6F'] };
 function PAQ() { // prochaines escales de paquebots (onglet « Paquebots » du Sheet)
   const L = C.paquebots || [];
   if (!L.length) return '<p class="mut">Aucune escale enregistrée.</p>';
   const td = new Date(), iso = d => d.toLocaleDateString('sv-SE', { timeZone: 'Pacific/Noumea' }), t0 = iso(td), t1 = iso(new Date(td.getTime() + 864e5));
   const jour = d => d === t0 ? "Aujourd'hui" : d === t1 ? 'Demain' : new Date(d + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/^./, c => c.toUpperCase());
   const mois = [...new Set(L.map(p => p.date.slice(0, 7)))];
-  return mois.map(m => `<h2>${new Date(m + '-15').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).replace(/^./, c => c.toUpperCase())}</h2><div class="card paq">` + L.filter(p => p.date.startsWith(m)).map(p => `<div class="pq${p.date === t0 ? ' auj' : ''}"><div class="pj">${jour(p.date)}</div>
+  return mois.map(m => `<h2>${new Date(m + '-15').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).replace(/^./, c => c.toUpperCase())}</h2><div class="card paq">` + L.filter(p => p.date.startsWith(m)).map(p => `<div class="pq${p.date === t0 ? ' auj' : ''}"><div class="pj">${jour(p.date)}${AFF[p.affluence] ? `<span class="aff" style="background:${AFF[p.affluence][1]}">${AFF[p.affluence][0]}</span>` : ''}</div>
     <div style="flex:1;min-width:0"><b>${esc(p.bateau)}</b><div class="mut">${p.arrivee || '?'} → ${p.depart || '?'}${p.marche === 'AU' ? ' <span class="tag p" style="margin-left:4px">Australiens</span>' : ''}</div></div>
-    ${p.passagers ? `<div class="pn"><b>~${Number(p.passagers).toLocaleString('fr-FR')}</b><small>passagers</small></div>` : ''}</div>`).join('') + `</div>`).join('') + '<p class="mut" style="margin-top:14px">Source CruiseMapper · passagers = capacité habituelle du bateau, pas un comptage.</p>';
+    ${p.passagers ? `<div class="pn"><b>~${Number(p.passagers).toLocaleString('fr-FR')}</b><small>passagers</small></div>` : ''}</div>`).join('') + `</div>`).join('') + '<p class="mut" style="margin-top:14px">Source Gangwaze · affluence comparée aux autres jours du mois · passagers hors équipage.</p>';
 }
 function renderCaisse() {
   if (document.activeElement && document.activeElement.matches('input,select,textarea')) return; // ne pas écraser une saisie en cours
