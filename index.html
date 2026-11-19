@@ -430,7 +430,7 @@ function renderCompta() {
     <div class="hl" style="margin-top:14px"><div class="next"><div><small>Personnes du jour</small><b>${s.pax}</b><small>${[[s.adultes,'adulte'],[s.enfants,'enfant'],[s.bebes,'bébé']].filter(x => x[0]).map(([v, l]) => v + ' ' + l + (v > 1 ? 's' : '')).join(' · ')}</small></div><div style="text-align:right"><small>Chiffre du jour</small><b style="font-size:26px;white-space:nowrap">${fmt(s.totalCfp, 'XPF')}</b><small>équivalent CFP</small></div></div>
       <div class="bar"><i style="width:${s.totalCfp ? Math.round(s.carteCfp / s.totalCfp * 100) : 0}%"></i></div>
       <div class="legend"><span>Carte ${fmt(s.carteCfp, 'XPF')}</span><span>Cash ≈ ${fmt(s.cashCfp, 'XPF')}</span></div></div>
-    <div class="tiles two">${tile('wallet', '#2a78d6', fmt(s.pax ? Math.round(s.totalCfp / s.pax) : 0, 'XPF'), 'Panier moyen / pers.')}${tile('chart', '#0f9a92', s.taux + ' %', 'Remplissage · ' + s.occupe + '/' + s.cap)}${tile('boat', '#7b4fd0', K.deps.length, 'Bateaux')}${tile('clock', '#eb6834', s.attente.reduce((t, a) => t + a.nb, 0), 'Reste à encaisser')}</div>` + comptaHtml(K, s);
+    <div class="tiles two" style="grid-template-columns:repeat(3,1fr)">${tile('chart', '#0f9a92', s.taux + ' %', 'Remplissage')}${tile('boat', '#7b4fd0', K.deps.length, 'Bateaux')}${tile('clock', '#eb6834', s.attente.reduce((t, a) => t + a.nb, 0), 'À encaisser')}</div>` + comptaHtml(K, s);
 }
 // PDF de clôture : page 1 visuelle, page 2 détail. Mise en page en tableaux (le convertisseur PDF de Google ignore flex/grid)
 const SER = {a:'#0f9a92', e:'#eb6834', b:'#2a78d6'};
