@@ -76,6 +76,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 4px;b
 .ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .hl{background:linear-gradient(135deg,var(--deep) 0%,#0b7a73 100%);color:#fff;border-radius:22px;padding:18px 18px 16px;box-shadow:0 14px 28px -14px #015450b3;margin:4px 0 10px}
 .hl small{display:block;font-size:13px;color:#cdeeea}.hl b{display:block;font:600 34px/1.1 var(--disp);margin:4px 0 2px;letter-spacing:-.01em}
+.hl.next{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.hl.next b{font-size:44px}
 .hl .bar{background:#ffffff2e;height:8px;margin-top:14px}.hl .bar i{background:#fff}.hl .legend{display:flex;justify-content:space-between;font-size:12px;color:#cdeeea;margin-top:6px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style></head>
@@ -149,7 +150,8 @@ function renderResa(err) {
   else {
   if (many) h += '<label>Pay</label>' + seg('ensemble', [['1','All together'],['','Separately']], S.ensemble?'1':'');
   if (!many || S.ensemble) h += PAY(S.mode, S.devise);
-  h += `<label>Promo code</label><div class="row"><input id="promo" value="${esc(S.promo || '')}" autocapitalize="characters"><button type="button" class="sec" style="flex:none;width:auto;padding:0 18px" onclick="applyPromo()">Apply</button></div>`;
+  if (!S.promoOpen && !S.promo) h += '<p style="margin:10px 0 0"><a href="#" onclick="S.promoOpen=1;renderResa();$(\'#promo\').focus();return false" style="color:var(--lagon);font-weight:600">+ Add promo code</a></p>';
+  else h += `<label>Promo code</label><div class="row"><input id="promo" value="${esc(S.promo || '')}" autocapitalize="characters"><button type="button" class="sec" style="flex:none;width:auto;padding:0 18px" onclick="applyPromo()">Apply</button></div>`;
   if (S.promoTried && S.promo) h += PUB.promo ? '<p style="margin:6px 0 0;color:var(--ok);font-weight:700">✓ Promo code applied</p>' : '<p style="margin:6px 0 0;color:var(--warn)">This promo code is not valid.</p>';
   h += `<div class="total">Total: ${total()}</div>`;
   }
@@ -253,6 +255,9 @@ function renderCaisse() {
     ? `<div class="card closed"><b>Journée clôturée</b><p class="mut" style="margin:4px 0 10px">Les réservations en ligne sont fermées (elles rouvrent toutes seules demain).</p><div class="row"><button onclick="VIEW='compta';loadCompta()">Compta · PDF</button><button class="sec" onclick="act('fermer',{ferme:false})">Rouvrir</button></div></div>`
     : '';
   const pend = new Set(C.resas.filter(r => r.statut === 'attente').map(r => r.ensemble === 'oui' ? r.groupe : r.id)).size;
+  const nx = C.deps.find(d => !d.parti && d.heure >= C.now) || C.deps.find(d => !d.parti); // prochain bateau pas encore parti
+  if (nx && !C.ferme) { const [a, b] = nx.heure.split(':'), [c, e] = C.now.split(':'), mn = a * 60 + +b - c * 60 - e, att = C.resas.filter(r => r.depart === nx.id && r.statut === 'attente').length;
+    h += `<div class="hl next"><div><small>Prochain bateau${mn > 0 ? ' · dans ' + mn + ' min' : mn < 0 ? ' · en retard' : ''}</small><b>${nx.heure}</b><small>${esc(nx.skipper || 'Skipper ?')}${att ? ' · <span style="color:#ffd3c0;font-weight:700">' + att + ' à encaisser</span>' : ''}</small></div><div style="text-align:right"><small>Places libres</small><b>${nx.libres}<span style="font-size:18px;opacity:.7">/${nx.capacite}</span></b></div></div>`; }
   h += `<div class="tiles">${tile('boat', '#0f9a92', C.deps.length, 'Bateaux')}${tile('users', '#2a78d6', C.deps.reduce((t, d) => t + Number(d.pris || 0), 0), 'Passagers')}${tile('seat', '#7b4fd0', C.deps.reduce((t, d) => t + Number(d.libres || 0), 0), 'Libres')}${tile('clock', '#eb6834', pend, 'En attente')}</div>`;
   h += `<h2>Départs du jour (${C.deps.length})</h2><div class="card" style="padding:6px 16px">` + (C.deps.length ? '' : '<p class="mut">Aucun départ. Ajoute le premier ci-dessous.</p>') + C.deps.map((d, i) => `<details ${OPEN.has(d.id)?'open':''} ontoggle="this.open?OPEN.add('${d.id}'):OPEN.delete('${d.id}')" class="depline">
       <summary class="sum"><span class="mut">${i+1}.</span><span class="chip" style="background:${col(d.couleur)}"></span><span class="time" style="font-size:21px">${d.heure}</span>
