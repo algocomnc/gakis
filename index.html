@@ -417,7 +417,15 @@ async function bilanImage(K, s) {
   el.style.cssText = 'position:fixed;left:-3000px;top:0;width:794px;background:#fff';
   el.innerHTML = bilanPage(K, s);
   document.body.appendChild(el);
-  try { return (await html2canvas(el, {scale: 2, backgroundColor: '#fff', logging: false})).toDataURL('image/jpeg', 0.9); }
+  try {
+    // l'image doit tenir sur une page A4, sinon le convertisseur Google la repousse en page 2 (page 1 blanche)
+    const c = await html2canvas(el, {scale: 2, backgroundColor: '#fff', logging: false}), H = Math.round(c.width * 1.38);
+    if (c.height <= H) return c.toDataURL('image/jpeg', 0.9);
+    const f = document.createElement('canvas'), k = H / c.height, x = f.getContext('2d');
+    f.width = c.width; f.height = H; x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, H);
+    x.drawImage(c, (c.width - c.width * k) / 2, 0, c.width * k, H);
+    return f.toDataURL('image/jpeg', 0.9);
+  }
   finally { el.remove(); }
 }
 function bilanPage(K, s) {
