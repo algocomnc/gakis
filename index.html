@@ -401,8 +401,8 @@ function pdfHtml(K, s, img) {
     <table class="t"><tr><th>Départ</th><th>Code</th><th>Noms</th><th>Pers.</th><th class="n">Montant</th><th>Mode</th><th>Statut</th></tr>
     ${s.tx.slice().sort((a, b) => String(a.dep.heure).localeCompare(b.dep.heure)).map(t => `<tr><td>${t.dep.heure || ''}</td><td>${t.groupe}</td><td>${esc(t.noms)}</td><td>${lbl(t)}</td><td class="n">${fmt(t.montant, t.devise)}</td><td>${t.mode}</td><td>${t.statut}</td></tr>`).join('')}</table>
     <p style="font-size:10px;color:#5b6b7c">A = adulte, E = enfant 2–9 ans, B = bébé. Une ligne = un encaissement (groupe payé ensemble ou personne seule).</p></div>`;
-  return `<meta charset="utf-8"><style>body{font:12px Helvetica,Arial,sans-serif;color:#0d2238}h2{font-size:14px;margin:18px 0 6px}
-    table.t{width:100%;border-collapse:collapse}.t td,.t th{padding:5px 4px;border-bottom:1px solid #dde4ea;text-align:left;font-size:11px}.t th{border-bottom:2px solid #0b3d6b}.n{text-align:right}</style>${img ? `<img src="${img}" style="width:100%">` : p1}${p2}`;
+  return `<meta charset="utf-8"><style>@page{size:A4;margin:0}body{margin:0;font:12px Helvetica,Arial,sans-serif;color:#0d2238}h2{font-size:14px;margin:18px 0 6px}
+    table.t{width:100%;border-collapse:collapse}.t td,.t th{padding:5px 4px;border-bottom:1px solid #dde4ea;text-align:left;font-size:11px}.t th{border-bottom:2px solid #0b3d6b}.n{text-align:right}</style>${img ? `<img src="${img}" style="display:block;width:210mm">` : `<div style="padding:12mm">${p1}</div>`}<div style="padding:0 12mm">${p2}</div>`;
 }
 // Page 1 du bilan « à la Gakis » : dessinée en HTML (polices, aplats), photographiée par html2canvas puis mise en image dans le PDF
 const H2C = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
@@ -419,7 +419,7 @@ async function bilanImage(K, s) {
   document.body.appendChild(el);
   try {
     // l'image doit tenir sur une page A4, sinon le convertisseur Google la repousse en page 2 (page 1 blanche)
-    const c = await html2canvas(el, {scale: 2, backgroundColor: '#fff', logging: false}), H = Math.round(c.width * 1.38);
+    const c = await html2canvas(el, {scale: 2, backgroundColor: '#fff', logging: false}), H = Math.round(c.width * 1.40); // A4 pleine page (297/210 = 1.414)
     if (c.height <= H) return c.toDataURL('image/jpeg', 0.9);
     const f = document.createElement('canvas'), k = H / c.height, x = f.getContext('2d');
     f.width = c.width; f.height = H; x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, H);
